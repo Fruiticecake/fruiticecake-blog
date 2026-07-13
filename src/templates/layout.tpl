@@ -27,7 +27,7 @@ $content
 </main>
 <footer class="site-footer">
   <div class="wrap">
-    <p>© $year Fruiticecake · 静态博客 · <a href="https://github.com/Fruiticecake/zyj-blog" target="_blank" rel="noopener noreferrer">GitHub</a></p>
+    <p>© $year Fruiticecake · 静态博客 · <a href="https://github.com/Fruiticecake/fruiticecake-blog" target="_blank" rel="noopener noreferrer">GitHub</a></p>
   </div>
 </footer>
 </body>
