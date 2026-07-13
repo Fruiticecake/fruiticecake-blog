@@ -1,0 +1,28 @@
+name: Build blog
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * *'          # 每天 02:00 UTC = 北京时间 10:00
+  workflow_dispatch:             # 允许手动触发
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Fetch AI HOT daily
+        run: python3 src/aihot.py
+      - name: Generate site
+        run: python3 src/generator.py
+      - name: Commit & push
+        run: |
+          git config user.name "blog-bot"
+          git config user.email "bot@blog.local"
+          git add -A
+          git commit -m "build: $(date +%F)" || echo "no changes"
+          git push
