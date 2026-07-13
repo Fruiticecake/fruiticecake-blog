@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local deploy artifacts
+.vercel/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+
+# 构建产物：public/ 由 Vercel 部署时运行 python3 src/generator.py 生成，不入库
+/public/
