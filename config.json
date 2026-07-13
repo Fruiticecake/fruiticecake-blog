@@ -1,10 +1,11 @@
 {
   "site": {
-    "title": "煜杰的博客",
+    "title": "Fruiticecake",
     "subtitle": "AI 动态 · 技术笔记 · 随笔",
-    "author": "曾煜杰",
-    "base_url": "https://ai.zyjproject.top",
-    "description": "一个纯静态个人博客：AI HOT 日报归档、技术文档与随笔。",
+    "author": "Fruiticecake",
+    "base_url": "https://zyj-blog.vercel.app",
+    "github": "https://github.com/Fruiticecake/fruiticecake-blog",
+    "description": "Fruiticecake 的公开静态博客：AI HOT 日报归档、技术文档与随笔。",
     "posts_per_home": 8,
     "recent_per_section": 5
   },
@@ -17,7 +18,7 @@
     },
     {
       "slug": "blog",
-      "name": "我的博客",
+      "name": "博客",
       "description": "随笔、思考与日常"
     },
     {

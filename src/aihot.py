@@ -62,32 +62,37 @@ def build_markdown(data, date_str):
     lines.append(f'title: AI HOT 日报 · {date_str}')
     lines.append(f'date: {date_str}')
     lines.append("section: aihot")
+    lines.append("html: true")
     lines.append(f'summary: 今日 AI HOT 收录 {total} 条动态，覆盖模型/产品/行业/论文/观点。')
     lines.append("tags: [AI, 日报, AI HOT]")
     lines.append(f'slug: {date_str}')
     lines.append("---")
     lines.append("")
-    lines.append(f"# AI HOT 日报 · {date_str}")
-    lines.append("")
-    lines.append(f"> 由 [AI HOT](https://aihot.virxact.com) 公开接口整理，共 {total} 条。")
-    lines.append("")
-    n = 0
+    import html as html_lib
+    def esc(s):
+        return html_lib.escape(clean(s), quote=True)
+    lines.append(f'<p class="aihot-intro">由 <a href="https://aihot.virxact.com" target="_blank" rel="noopener noreferrer">AI HOT</a> 公开接口整理，共 <strong>{total}</strong> 条。</p>')
     for _, lbl in SECTION_ORDER:
         items = sections_map.get(lbl, [])
         if not items:
             continue
-        lines.append(f"## {lbl}")
+        lines.append(f'<section class="aihot-group">')
+        lines.append(f'  <h2 class="aihot-group-title">{esc(lbl)}</h2>')
+        lines.append('  <div class="aihot-grid">')
         for it in items:
-            n += 1
             title = clean(it.get("title", ""))
             url = it.get("sourceUrl") or it.get("permalink") or "#"
             src = clean(it.get("sourceName", "") or "AI HOT")
-            summ = clean(it.get("summary", ""))[:80]
-            if summ:
-                lines.append(f"{n}. [{title}]({url}) — 来源：{src} · {summ}")
-            else:
-                lines.append(f"{n}. [{title}]({url}) — 来源：{src}")
-        lines.append("")
+            summ = clean(it.get("summary", ""))[:140]
+            body = esc(summ) if summ else "点击查看原文"
+            lines.append(f'    <a class="aihot-card" href="{esc(url)}" target="_blank" rel="noopener noreferrer">')
+            lines.append(f'      <span class="aihot-card-cat">{esc(lbl)}</span>')
+            lines.append(f'      <h3>{esc(title)}</h3>')
+            lines.append(f'      <p>{body}</p>')
+            lines.append(f'      <span class="aihot-card-src">{esc(src)}</span>')
+            lines.append('    </a>')
+        lines.append('  </div>')
+        lines.append('</section>')
     return "\n".join(lines)
 
 

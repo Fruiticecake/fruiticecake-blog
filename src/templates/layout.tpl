@@ -5,12 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>$title</title>
 <meta name="description" content="$description">
+<meta name="author" content="Fruiticecake">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <header class="site-header">
   <div class="wrap">
-    <a class="brand" href="/">$brand</a>
+    <a class="brand" href="/">Fruiticecake</a>
     <div class="tagline">$tagline</div>
   </div>
 </header>
@@ -26,7 +27,7 @@ $content
 </main>
 <footer class="site-footer">
   <div class="wrap">
-    <p>© $year $author · 由自研静态生成器构建 · 内容托管于 GitHub</p>
+    <p>© $year Fruiticecake · 静态博客 · <a href="https://github.com/Fruiticecake/zyj-blog" target="_blank" rel="noopener noreferrer">GitHub</a></p>
   </div>
 </footer>
 </body>

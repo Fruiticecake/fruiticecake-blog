@@ -68,7 +68,8 @@ def load_posts(cfg):
             path = os.path.join(sdir, fn)
             text = open(path, encoding="utf-8").read()
             meta, body = util.parse_frontmatter(text)
-            body_html = markdown.render(body)
+            raw_html = str(meta.get("html", "")).lower() in ("true", "1", "yes")
+            body_html = body if raw_html else markdown.render(body)
             slug = str(meta.get("slug") or util.slugify(fn[:-3]))
             date = util.parse_date(meta.get("date") or meta.get("published") or meta.get("created"))
             if date is None:
