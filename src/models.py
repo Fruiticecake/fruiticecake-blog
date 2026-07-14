@@ -15,6 +15,7 @@ class Post:
     tags: list = field(default_factory=list)
     body_html: str = ""
     src_path: str = ""
+    source: str = ""
 
     @property
     def url(self):

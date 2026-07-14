@@ -6,6 +6,7 @@
     </div>
     <h1>$title</h1>
     $tags_html
+    $source_html
   </header>
   <div class="post-body">$body</div>
   <footer class="post-foot">

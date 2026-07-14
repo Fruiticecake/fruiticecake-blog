@@ -82,7 +82,8 @@ def load_posts(cfg):
                 slug=slug, section=sd["slug"],
                 title=str(meta.get("title", fn[:-3])),
                 date=date, summary=make_summary(body_html, meta),
-                tags=list(tags), body_html=body_html, src_path=path)
+                tags=list(tags), body_html=body_html, src_path=path,
+                source=str(meta.get("source") or ""))
             sections[sd["slug"]].posts.append(post)
             all_posts.append(post)
     for sec in sections.values():
@@ -165,11 +166,19 @@ def build_section(cfg, sections, sd):
 
 def build_post(cfg, sections, post):
     t = load_template("post.tpl")
+    if post.source:
+        source_html = (
+            f'<p class="source-note">???'
+            f'<a href="{util.html_escape(post.source)}" target="_blank" '
+            f'rel="noopener noreferrer">{util.html_escape(post.source)}</a></p>'
+        )
+    else:
+        source_html = ""
     content = t.substitute(
         slug=post.section, section_url=f"/{post.section}/",
         section_name=util.html_escape(sections[post.section].name),
         date=post.date_human, title=util.html_escape(post.title),
-        tags_html=tags_html(post), body=post.body_html)
+        tags_html=tags_html(post), source_html=source_html, body=post.body_html)
     return render_layout(cfg, f"{post.title} · {cfg['site']['title']}",
                          post.summary, content)
 

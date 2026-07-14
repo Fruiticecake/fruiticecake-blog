@@ -1,38 +1,35 @@
 ---
-title: vue3 element plus Menu路由跳转动画
-date: 2020-01-01
-summary: "本文介绍如何在Vue项目中使用路由视图实现页面过渡动画效果，包括不同方向的滑动动画设置及CSS过渡属性的详细配置。 <el main <router view v slot=\"{ Component…"
-tags: [CSDN同步, 前端]
+title: "vue3 element plus Menu路由跳转动画"
+date: 2022-12-14
+summary: "vue3 element plus Menu路由跳转的切换动画"
+tags: ["CSDN同步", "前端", "javascript", "开发语言"]
 slug: 128320451-vue3-element-plus-menu路由跳转动画
-source: https://blog.csdn.net/weixin_52400878/article/details/128320451
+source: "https://blog.csdn.net/weixin_52400878/article/details/128320451"
+html: true
 ---
 
-本文介绍如何在Vue项目中使用路由视图实现页面过渡动画效果，包括不同方向的滑动动画设置及CSS过渡属性的详细配置。
+<pre>
+<code class="language-html">        &lt;el-main&gt;
+          &lt;router-view v-slot="{ Component }"&gt;
+            &lt;keep-alive&gt;
+              &lt;transition :name="animation"&gt;
+                &lt;component :is="Component" /&gt;
+              &lt;/transition&gt;
+            &lt;/keep-alive&gt; &lt;/router-view
+        &gt;&lt;/el-main&gt;</code></pre>
 
-```
-        <el-main>
-          <router-view v-slot="{ Component }">
-            <keep-alive>
-              <transition :name="animation">
-                <component :is="Component" />
-              </transition>
-            </keep-alive> </router-view
-        ></el-main>
-```
-
-```
-const animation = ref("slide");
-onBeforeRouteUpdate((to, form) => {
-  if (to.meta.index > form.meta.index) {
+<pre>
+<code class="language-javascript">const animation = ref("slide");
+onBeforeRouteUpdate((to, form) =&gt; {
+  if (to.meta.index &gt; form.meta.index) {
     animation.value = "slide-left";
   } else {
     animation.value = "slide-right";
   }
-});
-```
+});</code></pre>
 
-```
-.slide-left-enter-active,
+<pre>
+<code class="language-css">.slide-left-enter-active,
 .slide-left-leave-active,
 .slide-right-enter-active,
 .slide-right-leave-active {
@@ -58,7 +55,7 @@ onBeforeRouteUpdate((to, form) => {
 .slide-left-leave-active {
   opacity: 0;
   transform: translate3d(-3%, 0, 0);
-}
-```
+}</code></pre>
 
-> 原载 [CSDN](https://blog.csdn.net/weixin_52400878/article/details/128320451)，同步至本站。
+<p></p>
+<p class="source-note">原文发布于 <a href="https://blog.csdn.net/weixin_52400878/article/details/128320451" target="_blank" rel="noopener noreferrer">CSDN</a>。</p>

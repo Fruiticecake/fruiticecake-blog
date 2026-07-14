@@ -95,26 +95,45 @@ def render(md):
 
 def _inline(text):
     text = html.escape(text)
-    # 先抽出行内代码，避免其中的 * _ 被误格式化
+    # ???????????? * _ ????
     codes = []
-    def stash(m):
+
+    def stash_code(m):
         codes.append(m.group(1))
-        return f"\x00{len(codes) - 1}\x00"
-    text = re.sub(r"`([^`]+)`", stash, text)
-    # 图片
-    text = re.sub(r"!\[([^\]]*)\]\(([^)\s]+)\)",
-                  r'<img src="\2" alt="\1">', text)
-    # 链接（新窗口打开）
-    text = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)",
-                  r'<a href="\2" target="_blank" rel="noopener noreferrer">\1</a>', text)
-    # 粗体
+        return f"\x00C{len(codes) - 1}\x00"
+
+    text = re.sub(r"`([^`]+)`", stash_code, text)
+
+    # ?????????? URL ?? _ ????
+    media = []
+
+    def stash_img(m):
+        media.append(("img", m.group(1), m.group(2)))
+        return f"\x00M{len(media) - 1}\x00"
+
+    def stash_link(m):
+        media.append(("a", m.group(1), m.group(2)))
+        return f"\x00M{len(media) - 1}\x00"
+
+    text = re.sub(r"!\[([^\]]*)\]\(([^)\s]+)\)", stash_img, text)
+    text = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", stash_link, text)
+
+    # ?? / ??
     text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
     text = re.sub(r"__([^_]+)__", r"<strong>\1</strong>", text)
-    # 斜体
     text = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<em>\1</em>", text)
     text = re.sub(r"(?<!_)_([^_]+)_(?!_)", r"<em>\1</em>", text)
-    # 还原行内代码
-    def restore(m):
+
+    def restore_media(m):
+        kind, alt, url = media[int(m.group(1))]
+        if kind == "img":
+            return f'<img src="{url}" alt="{alt}">'
+        return f'<a href="{url}" target="_blank" rel="noopener noreferrer">{alt}</a>'
+
+    text = re.sub(r"\x00M(\d+)\x00", restore_media, text)
+
+    def restore_code(m):
         return f"<code>{codes[int(m.group(1))]}</code>"
-    text = re.sub(r"\x00(\d+)\x00", restore, text)
+
+    text = re.sub(r"\x00C(\d+)\x00", restore_code, text)
     return text
