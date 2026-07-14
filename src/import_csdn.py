@@ -8,6 +8,7 @@ DUMPS = [
  pathlib.Path(r"C:\Users\Administrator\.cursor\projects\d-software-WorkBuddy-knowledge\agent-tools\47e01a33-d4a4-482b-9d55-e91d36634ea8.txt"),
  pathlib.Path(r"C:\Users\Administrator\.cursor\projects\d-software-WorkBuddy-knowledge\agent-tools\902a3ecc-5d01-45e1-97c2-781fbf04413e.txt"),
  pathlib.Path(r"C:\Users\Administrator\.cursor\projects\d-software-WorkBuddy-knowledge\agent-tools\cf5ca9ed-0738-4f14-ae24-75fb2d8f074d.txt"),
+ pathlib.Path(r"C:\Users\Administrator\.cursor\projects\d-software-WorkBuddy-knowledge\agent-tools\a98b9be4-2912-486e-aaac-e2fe1d548163.txt"),
 ]
 TITLE_SUFFIX_RE = re.compile(r"(?:_[^_\n]{0,80})?-CSDN\u535a\u5ba2\s*$")
 SEO_SUFFIX_RE = re.compile(r"_[^_\n]{1,60}$")
