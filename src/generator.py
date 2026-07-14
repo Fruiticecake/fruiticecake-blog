@@ -168,9 +168,9 @@ def build_post(cfg, sections, post):
     t = load_template("post.tpl")
     if post.source:
         source_html = (
-            f'<p class="source-note">???'
+            f'<p class="source-note">原载 '
             f'<a href="{util.html_escape(post.source)}" target="_blank" '
-            f'rel="noopener noreferrer">{util.html_escape(post.source)}</a></p>'
+            f'rel="noopener noreferrer">CSDN</a></p>'
         )
     else:
         source_html = ""

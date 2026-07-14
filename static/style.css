@@ -119,3 +119,14 @@ a{color:inherit;text-decoration:none}
 .source-note{margin:.6rem 0 0;font-size:.9rem;opacity:.85}
 .source-note a{word-break:break-all}
 .post:has(.aihot-grid){max-width:1080px}
+.post-body aside{
+  background:var(--card);border:1px solid var(--line);border-left:3px solid var(--accent2);
+  border-radius:10px;padding:14px 16px;margin:18px 0;color:var(--txt2)}
+.post-body table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px;
+  display:block;overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+.post-body th,.post-body td{border:1px solid var(--line);padding:10px 12px;text-align:left}
+.post-body thead th{background:var(--card2);font-weight:700}
+.post-body tbody tr:nth-child(even){background:rgba(255,255,255,.02)}
+.post-body pre.mermaid,.post-body .mermaid{
+  background:var(--bg);border:1px solid var(--line);border-radius:12px;
+  padding:16px;margin:16px 0;overflow-x:auto;font-family:ui-monospace,Menlo,monospace;font-size:13px}

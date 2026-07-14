@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""零依赖 Markdown -> HTML 渲染器（覆盖博客/文档常用子集）。
+"""Lightweight Markdown -> HTML renderer for blog posts and docs.
 
-支持：标题、代码块、行内代码、有序/无序列表、引用、分隔线、
-粗体/斜体、链接（新窗口）、图片。不支持：表格、嵌套列表、脚注。
-如需更完整 Markdown，可在 GitHub Action 中 pip install markdown 后替换本模块。
+Supports headings, fenced code, block/ordered lists, blockquotes, horizontal rules,
+bold/italic, links (new tab), images, raw HTML blocks, GFM pipe tables, and Mermaid fences.
+Can be replaced with pip install markdown in CI if needed.
 """
 import re
 import html
@@ -14,6 +14,66 @@ UL_ITEM = re.compile(r"^\s*[-*+]\s+(.*)$")
 OL_ITEM = re.compile(r"^\s*\d+\.\s+(.*)$")
 HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
 HR = re.compile(r"^(\s*[-*_]\s*){3,}$")
+TABLE_SEP = re.compile(r"^\s*\|(?:\s*:?-+:?\s*\|)+\s*$")
+BLOCK_HTML_START = re.compile(r"^\s*(<\w|</\w)")
+VOID_TAGS = frozenset({
+    "area", "base", "br", "col", "embed", "hr", "img", "input",
+    "link", "meta", "param", "source", "track", "wbr",
+})
+
+
+def _is_block_html_line(line):
+    return bool(BLOCK_HTML_START.match(line))
+
+
+def _collect_html_block(lines, i, n):
+    """Collect a raw HTML block starting at line i; return (html, next_index)."""
+    buf = []
+    stack = []
+    j = i
+    while j < n:
+        line = lines[j]
+        buf.append(line)
+        for m in re.finditer(r"<\s*(/?)\s*(\w+)([^>]*?)(\/?)\s*>", line):
+            is_close = bool(m.group(1))
+            tag = m.group(2).lower()
+            attrs = m.group(3) or ""
+            explicit_void = bool(m.group(4))
+            self_closing = explicit_void or tag in VOID_TAGS or attrs.rstrip().endswith("/")
+            if is_close:
+                if stack and stack[-1] == tag:
+                    stack.pop()
+            elif not self_closing:
+                stack.append(tag)
+        j += 1
+        if j > i and not stack:
+            break
+    if j == i + 1:
+        return buf[0], i + 1
+    return "\n".join(buf), j
+
+
+def _split_table_cells(line):
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def _parse_table(lines, i, n):
+    if i + 1 >= n or not TABLE_SEP.match(lines[i + 1]):
+        return None
+    header = _split_table_cells(lines[i])
+    j = i + 2
+    rows = []
+    while j < n and lines[j].strip().startswith("|") and not TABLE_SEP.match(lines[j]):
+        rows.append(_split_table_cells(lines[j]))
+        j += 1
+    thead = "<thead><tr>" + "".join(f"<th>{_inline(c)}</th>" for c in header) + "</tr></thead>"
+    tbody_rows = []
+    for row in rows:
+        tbody_rows.append(
+            "<tr>" + "".join(f"<td>{_inline(c)}</td>" for c in row) + "</tr>"
+        )
+    tbody = "<tbody>" + "".join(tbody_rows) + "</tbody>"
+    return f"<table>{thead}{tbody}</table>", j
 
 
 def render(md):
@@ -26,32 +86,32 @@ def render(md):
         if line.strip() == "":
             i += 1
             continue
-        # 代码块
         m = BLOCK_CODE.match(line)
         if m:
-            lang = m.group(1)
+            lang = (m.group(1) or "").lower()
             buf = []
             i += 1
             while i < n and not lines[i].startswith("```"):
                 buf.append(lines[i])
                 i += 1
-            i += 1  # 跳过结束 ```
-            cls = f' class="language-{lang}"' if lang else ""
-            out.append(f"<pre><code{cls}>{html.escape(chr(10).join(buf))}</code></pre>")
+            i += 1
+            body = html.escape("\n".join(buf))
+            if lang == "mermaid":
+                out.append(f'<pre class="mermaid">{body}</pre>')
+            else:
+                cls = f' class="language-{lang}"' if lang else ""
+                out.append(f"<pre><code{cls}>{body}</code></pre>")
             continue
-        # 分隔线
         if HR.match(line):
             out.append("<hr>")
             i += 1
             continue
-        # 标题
         h = HEADING.match(line)
         if h:
             level = len(h.group(1))
             out.append(f"<h{level}>{_inline(h.group(2).strip())}</h{level}>")
             i += 1
             continue
-        # 引用
         if line.lstrip().startswith(">"):
             buf = []
             while i < n and lines[i].lstrip().startswith(">"):
@@ -59,7 +119,16 @@ def render(md):
                 i += 1
             out.append(f"<blockquote>{_inline(' '.join(buf))}</blockquote>")
             continue
-        # 列表（有序/无序）
+        if line.strip().startswith("|"):
+            table = _parse_table(lines, i, n)
+            if table:
+                out.append(table[0])
+                i = table[1]
+                continue
+        if _is_block_html_line(line):
+            block, i = _collect_html_block(lines, i, n)
+            out.append(block)
+            continue
         if UL_ITEM.match(line) or OL_ITEM.match(line):
             ordered = OL_ITEM.match(line) is not None
             items = []
@@ -78,7 +147,6 @@ def render(md):
             li = "".join(f"<li>{it}</li>" for it in items)
             out.append(f"<{tag}>{li}</{tag}>")
             continue
-        # 段落
         buf = []
         while i < n and lines[i].strip() != "" \
                 and not BLOCK_CODE.match(lines[i]) \
@@ -86,7 +154,9 @@ def render(md):
                 and not HR.match(lines[i]) \
                 and not lines[i].lstrip().startswith(">") \
                 and not UL_ITEM.match(lines[i]) \
-                and not OL_ITEM.match(lines[i]):
+                and not OL_ITEM.match(lines[i]) \
+                and not _is_block_html_line(lines[i]) \
+                and not (lines[i].strip().startswith("|") and i + 1 < n and TABLE_SEP.match(lines[i + 1])):
             buf.append(lines[i])
             i += 1
         out.append(f"<p>{_inline(' '.join(buf))}</p>")
@@ -95,7 +165,7 @@ def render(md):
 
 def _inline(text):
     text = html.escape(text)
-    # ???????????? * _ ????
+    # Stash inline code so * / _ in code are not styled
     codes = []
 
     def stash_code(m):
@@ -104,7 +174,7 @@ def _inline(text):
 
     text = re.sub(r"`([^`]+)`", stash_code, text)
 
-    # ?????????? URL ?? _ ????
+    # Stash images and links so URL/alt parsing is not broken by emphasis
     media = []
 
     def stash_img(m):
@@ -118,7 +188,7 @@ def _inline(text):
     text = re.sub(r"!\[([^\]]*)\]\(([^)\s]+)\)", stash_img, text)
     text = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", stash_link, text)
 
-    # ?? / ??
+    # Bold / italic
     text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
     text = re.sub(r"__([^_]+)__", r"<strong>\1</strong>", text)
     text = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<em>\1</em>", text)
@@ -126,9 +196,14 @@ def _inline(text):
 
     def restore_media(m):
         kind, alt, url = media[int(m.group(1))]
+        alt_esc = html.escape(html.unescape(alt))
+        url_esc = html.escape(html.unescape(url))
         if kind == "img":
-            return f'<img src="{url}" alt="{alt}">'
-        return f'<a href="{url}" target="_blank" rel="noopener noreferrer">{alt}</a>'
+            return (
+                f'<img src="{url_esc}" alt="{alt_esc}" '
+                f'referrerpolicy="no-referrer" loading="lazy">'
+            )
+        return f'<a href="{url_esc}" target="_blank" rel="noopener noreferrer">{alt_esc}</a>'
 
     text = re.sub(r"\x00M(\d+)\x00", restore_media, text)
 
