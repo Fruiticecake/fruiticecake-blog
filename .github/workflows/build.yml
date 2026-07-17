@@ -3,7 +3,10 @@ on:
   push:
     branches: [main]
   schedule:
+    # 北京时间 10:00
     - cron: '0 2 * * *'
+    # 北京时间 18:00 补跑（防止上午日报尚未生成）
+    - cron: '0 10 * * *'
   workflow_dispatch:
 permissions:
   contents: write
@@ -16,7 +19,17 @@ jobs:
         with:
           python-version: '3.11'
       - name: Fetch AI HOT daily
-        run: python3 src/aihot.py || true
+        id: aihot
+        run: |
+          set +e
+          python3 src/aihot.py
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          # 0=今天已写入；2=今天未就绪但已写入最近一期；其它=失败
+          if [ "$code" -eq 1 ] || [ "$code" -gt 2 ]; then
+            exit "$code"
+          fi
+          exit 0
       - name: Generate site
         run: python3 src/generator.py
       - name: Commit & push
@@ -24,5 +37,5 @@ jobs:
           git config user.name "blog-bot"
           git config user.email "bot@users.noreply.github.com"
           git add -A
-          git commit -m "build: $(date +%F)" || echo "no changes"
+          git commit -m "build: $(TZ=Asia/Shanghai date +%F)" || echo "no changes"
           git push
