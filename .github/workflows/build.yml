@@ -3,9 +3,9 @@ on:
   push:
     branches: [main]
   schedule:
-    # 北京时间 10:00
-    - cron: '0 2 * * *'
-    # 北京时间 18:00 补跑（防止上午日报尚未生成）
+    # 北京时间 08:00（UTC 00:00）
+    - cron: '0 0 * * *'
+    # 北京时间 18:00 补跑（防止早上日报尚未生成）
     - cron: '0 10 * * *'
   workflow_dispatch:
 permissions:
