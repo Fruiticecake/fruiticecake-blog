@@ -3,10 +3,12 @@ on:
   push:
     branches: [main]
   schedule:
-    # 北京时间 08:00（UTC 00:00）
-    - cron: '0 0 * * *'
-    # 北京时间 18:00 补跑（防止早上日报尚未生成）
-    - cron: '0 10 * * *'
+    # GitHub schedule 常在整点积压 2–3 小时，故用 :20 分并提前覆盖上午窗口。
+    # 目标：北京时间早上约 08:00 前后能更新到当天日报。
+    - cron: '20 22 * * *'   # UTC 22:20 = BJ 06:20（提前跑，延迟后常落在 ~08:00）
+    - cron: '20 0 * * *'    # UTC 00:20 = BJ 08:20
+    - cron: '20 2 * * *'    # UTC 02:20 = BJ 10:20（上午兜底）
+    - cron: '20 10 * * *'   # UTC 10:20 = BJ 18:20（晚间补跑）
   workflow_dispatch:
 permissions:
   contents: write
