@@ -212,3 +212,4 @@ def _inline(text):
 
     text = re.sub(r"\x00C(\d+)\x00", restore_code, text)
     return text
+

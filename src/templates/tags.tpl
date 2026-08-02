@@ -3,3 +3,4 @@
   <p>共 $count 篇</p>
 </header>
 <div class="post-list">$posts</div>
+

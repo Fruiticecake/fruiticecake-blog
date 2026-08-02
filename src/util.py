@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""通用工具：slug、北京时间、frontmatter 解析、HTML 转义。"""
+"""通用工具：slug、北京时间、frontmatter 解析、HTML 转义、阅读时长、星期。"""
 import re
 import html
 import datetime
 
 BJ = datetime.timezone(datetime.timedelta(hours=8))
+_WEEKDAY_CN = ["一", "二", "三", "四", "五", "六", "日"]
+
+
+def weekday_cn(dt):
+    return _WEEKDAY_CN[dt.weekday()]
 
 
 def slugify(text):
@@ -55,20 +60,17 @@ def bj_human(dt):
     return f"{prefix} {hh}".strip() if hh else prefix
 
 
-def parse_frontmatter(text):
-    """解析简单的 YAML frontmatter。
+def reading_time_cn(body_html):
+    """按中文阅读速度（约 400 字/分钟）估算阅读时长。"""
+    text = re.sub(r"<[^>]+>", "", body_html or "")
+    chars = len(re.sub(r"\s+", "", text))
+    minutes = max(1, round(chars / 400))
+    return f"约 {minutes} 分钟"
 
-    支持：
-      key: value
-      key: [a, b, c]        # 列表
-      key:                 # 多行列表
-        - a
-        - b
-    返回 (meta: dict, body: str)。
-    """
+
+def parse_frontmatter(text):
     if not text.startswith("---"):
         return {}, text.strip()
-    # 找到结束的 ---
     m = re.match(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", text, re.S)
     if not m:
         return {}, text.strip()
@@ -79,7 +81,6 @@ def parse_frontmatter(text):
     for line in raw_meta.splitlines():
         if not line.strip():
             continue
-        # 多行列表项
         li = re.match(r"^\s*-\s+(.*)$", line)
         if li and cur_key is not None and list_buf is not None:
             list_buf.append(_scalar(li.group(1)))
@@ -104,3 +105,4 @@ def parse_frontmatter(text):
 def _scalar(v):
     v = v.strip().strip('"').strip("'")
     return v
+

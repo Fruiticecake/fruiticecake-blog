@@ -4,7 +4,11 @@
 
 运行：python3 src/generator.py
 从 content/<板块>/*.md 读取文章，按 config.json 渲染到 public/。
-新增板块：建 content/<slug>/ 目录 + 在 config.json 的 sections 加一条即可，无需改代码。
+新增普通板块：建 content/<slug>/ 目录 + 在 config.json 的 sections 加一条即可，无需改代码
+（默认用通用的时间线列表渲染）。aihot/ai-chat/blog/docs 四个板块各自有更贴合内容形态的列表样式，
+在 build_section() 里按 slug 分派，其余板块一律走通用样式。
+AI 对话记录：板块 slug 为 ai-chat，或文章 frontmatter 写 `type: chat`，
+正文按 chat.py 的规则解析为聊天气泡。
 """
 import os
 import re
@@ -16,6 +20,7 @@ from string import Template
 import util
 import markdown
 import models
+import chat
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src")
@@ -50,6 +55,11 @@ def name_map(sections):
     return {s: sec.name for s, sec in sections.items()}
 
 
+def extract_count(summary):
+    m = re.search(r"(\d+)\s*条", summary or "")
+    return m.group(1) if m else ""
+
+
 # ---------------- 加载文章 ----------------
 def load_posts(cfg):
     sections = {}
@@ -69,7 +79,13 @@ def load_posts(cfg):
             text = open(path, encoding="utf-8").read()
             meta, body = util.parse_frontmatter(text)
             raw_html = str(meta.get("html", "")).lower() in ("true", "1", "yes")
-            body_html = body if raw_html else markdown.render(body)
+            is_chat = sd["slug"] == "ai-chat" or str(meta.get("type", "")).lower() == "chat"
+            if is_chat:
+                body_html = chat.render(body, meta)
+            elif raw_html:
+                body_html = body
+            else:
+                body_html = markdown.render(body)
             slug = str(meta.get("slug") or util.slugify(fn[:-3]))
             date = util.parse_date(meta.get("date") or meta.get("published") or meta.get("created"))
             if date is None:
@@ -83,7 +99,8 @@ def load_posts(cfg):
                 title=str(meta.get("title", fn[:-3])),
                 date=date, summary=make_summary(body_html, meta),
                 tags=list(tags), body_html=body_html, src_path=path,
-                source=str(meta.get("source") or ""))
+                source=str(meta.get("source") or ""),
+                model=str(meta.get("model") or ""))
             sections[sd["slug"]].posts.append(post)
             all_posts.append(post)
     for sec in sections.values():
@@ -92,7 +109,7 @@ def load_posts(cfg):
     return sections, all_posts
 
 
-# ---------------- 渲染片段 ----------------
+# ---------------- 通用片段 ----------------
 def post_item_html(post, nmap):
     return (f'<article class="post-item">\n'
             f'  <div class="meta"><a class="sec-badge sec-{post.section}" '
@@ -107,8 +124,10 @@ def section_cards_html(sections, cfg):
     cards = []
     for sd in cfg["sections"]:
         sec = sections[sd["slug"]]
+        dot = sd.get("dot", "#8a7355")
         cards.append(
             f'<a class="sec-card sec-{sec.slug}" href="/{sec.slug}/">\n'
+            f'  <span class="sec-dot" style="background:{util.html_escape(dot)}"></span>\n'
             f'  <h3>{util.html_escape(sec.name)}</h3>\n'
             f'  <p>{util.html_escape(sec.description)}</p>\n'
             f'  <span class="count">{sec.count} 篇</span>\n'
@@ -139,27 +158,129 @@ def render_layout(cfg, title, description, content):
         author=util.html_escape(cfg["site"].get("author", "")))
 
 
+# ---------------- 板块专属列表渲染 ----------------
+def render_aihot_section(sec):
+    days = sec.posts[:14]
+    streak_html = "".join(
+        f'<div class="streak-day{" active" if i == 0 else ""}">'
+        f'<div class="streak-wd">{util.weekday_cn(p.date)}</div>'
+        f'<div class="streak-num">{p.date.day}</div></div>'
+        for i, p in enumerate(days))
+    rows = "".join(
+        f'<a class="aihot-list-row" href="{p.url}">'
+        f'<div><div class="aihot-list-date">{p.date_human}</div>'
+        f'<div class="aihot-list-headline">{util.html_escape(p.summary)}</div></div>'
+        f'<span class="aihot-list-count">{util.html_escape(extract_count(p.summary))} 条 →</span></a>'
+        for p in sec.posts)
+    return f'<div class="streak-row">{streak_html}</div><div class="aihot-list">{rows}</div>'
+
+
+def render_chat_section(sec):
+    rows = "".join(
+        f'<a class="chat-inbox-row" href="{p.url}">'
+        f'<div class="chat-avatar">{util.html_escape((p.model or "AI")[:1].upper())}</div>'
+        f'<div class="chat-inbox-body"><div class="chat-inbox-top">'
+        f'<span class="chat-inbox-title">{util.html_escape(p.title)}</span>'
+        f'<span class="chat-inbox-date">{p.date_human}</span></div>'
+        f'<div class="chat-inbox-preview">“{util.html_escape(p.summary)}”</div></div></a>'
+        for p in sec.posts)
+    return f'<div class="chat-inbox">{rows}</div>' if rows else '<p class="empty-note">还没有对话记录。</p>'
+
+
+def render_blog_section(sec):
+    posts = sec.posts
+    if not posts:
+        return '<p class="empty-note">暂无内容。</p>'
+    feature, rest = posts[0], posts[1:]
+    feature_html = (
+        f'<a class="blog-feature" href="{feature.url}">'
+        f'<div class="blog-feature-text"><span class="blog-feature-tag">最新</span>'
+        f'<h2>{util.html_escape(feature.title)}</h2>'
+        f'<p>{util.html_escape(feature.summary)}</p></div>'
+        f'<div class="blog-feature-date">{feature.date_human}</div></a>')
+    grid = "".join(
+        f'<a class="blog-grid-item" href="{p.url}">'
+        f'<div class="blog-grid-date">{p.date_human}</div>'
+        f'<div class="blog-grid-title">{util.html_escape(p.title)}</div></a>'
+        for p in rest)
+    return feature_html + (f'<div class="blog-grid">{grid}</div>' if grid else "")
+
+
+def render_docs_section(sec):
+    rows = "".join(
+        f'<a class="docs-index-row" href="{p.url}">'
+        f'<span class="docs-index-idx">{i + 1:02d}</span>'
+        f'<span class="docs-index-title">{util.html_escape(p.title)}</span>'
+        f'<span class="docs-index-date">{p.date_human}</span></a>'
+        for i, p in enumerate(sec.posts))
+    return f'<div class="docs-index">{rows}</div>' if rows else '<p class="empty-note">暂无内容。</p>'
+
+
+SECTION_RENDERERS = {
+    "aihot": lambda sec, nmap: render_aihot_section(sec),
+    "ai-chat": lambda sec, nmap: render_chat_section(sec),
+    "blog": lambda sec, nmap: render_blog_section(sec),
+    "docs": lambda sec, nmap: render_docs_section(sec),
+}
+
+
 # ---------------- 页面 ----------------
 def build_home(cfg, sections, all_posts):
     t = load_template("home.tpl")
     nmap = name_map(sections)
+    nav_slim = "".join(
+        f'<a href="/{s["slug"]}/">{util.html_escape(s["name"])}</a>' for s in cfg["sections"]
+    ) + '<a href="/archive/">归档</a>'
+
+    chat_posts = [p for p in all_posts if p.section == "ai-chat"]
+    if chat_posts:
+        cp = chat_posts[0]
+        chat_teaser_block = (
+            f'<a class="home-chat-teaser" href="{cp.url}">'
+            f'<div class="home-chat-kicker">最新 AI 对话</div>'
+            f'<div class="home-chat-bubble">“{util.html_escape(cp.summary)}”</div>'
+            f'<div class="home-chat-meta">与 {util.html_escape(cp.model or "AI")} · {cp.date_human} →</div></a>')
+    else:
+        chat_teaser_block = ""
+
     recent = all_posts[:cfg["site"].get("posts_per_home", 8)]
+    feature = recent[0] if recent else None
+    secondary = recent[1:6]
+    if feature:
+        feature_html = (
+            f'<a class="home-feature" href="{feature.url}">'
+            f'<span class="sec-badge sec-{feature.section}">{util.html_escape(nmap[feature.section])} · 头条</span>'
+            f'<h2>{util.html_escape(feature.title)}</h2>'
+            f'<p>{util.html_escape(feature.summary)}</p>'
+            f'<span class="home-feature-date">{feature.date_human} · {feature.reading_time}</span></a>')
+    else:
+        feature_html = '<p class="empty-note">暂无内容。</p>'
+    secondary_html = "".join(
+        f'<a class="home-secondary-item" href="{p.url}">'
+        f'<div class="home-secondary-top"><span class="sec-badge sec-{p.section}">{util.html_escape(nmap[p.section])}</span>'
+        f'<span class="home-secondary-date">{p.date_human}</span></div>'
+        f'<div class="home-secondary-title">{util.html_escape(p.title)}</div></a>'
+        for p in secondary)
+
     content = t.substitute(
         site_title=util.html_escape(cfg["site"]["title"]),
         site_subtitle=util.html_escape(cfg["site"].get("subtitle", "")),
-        recent="\n".join(post_item_html(p, nmap) for p in recent),
+        nav_slim=nav_slim, chat_teaser_block=chat_teaser_block,
+        feature_html=feature_html, secondary_html=secondary_html,
         section_cards=section_cards_html(sections, cfg))
     return render_layout(cfg, cfg["site"]["title"], cfg["site"].get("description", ""), content)
 
 
 def build_section(cfg, sections, sd):
     sec = sections[sd["slug"]]
-    t = load_template("section.tpl")
     nmap = name_map(sections)
+    renderer = SECTION_RENDERERS.get(sd["slug"])
+    body = renderer(sec, nmap) if renderer else "\n".join(post_item_html(p, nmap) for p in sec.posts)
+    t = load_template("section.tpl")
     content = t.substitute(
         name=util.html_escape(sec.name),
         description=util.html_escape(sec.description),
-        posts="\n".join(post_item_html(p, nmap) for p in sec.posts))
+        posts=body)
     return render_layout(cfg, f"{sec.name} · {cfg['site']['title']}",
                          sec.description, content)
 
@@ -170,25 +291,45 @@ def build_post(cfg, sections, post):
         source_html = (
             f'<p class="source-note">原载 '
             f'<a href="{util.html_escape(post.source)}" target="_blank" '
-            f'rel="noopener noreferrer">CSDN</a></p>'
+            f'rel="noopener noreferrer">来源</a></p>'
         )
     else:
         source_html = ""
+    model_html = (f'<span class="model-badge">{util.html_escape(post.model)}</span>'
+                  if post.model else "")
     content = t.substitute(
         slug=post.section, section_url=f"/{post.section}/",
         section_name=util.html_escape(sections[post.section].name),
         date=post.date_human, title=util.html_escape(post.title),
+        reading_time=post.reading_time, model_html=model_html,
         tags_html=tags_html(post), source_html=source_html, body=post.body_html)
     return render_layout(cfg, f"{post.title} · {cfg['site']['title']}",
                          post.summary, content)
 
 
 def build_archive(cfg, sections, all_posts):
+    groups = []
+    cur_key, cur_list = None, None
+    for p in all_posts:
+        key = (p.date.year, p.date.month)
+        if key != cur_key:
+            cur_key = key
+            cur_list = []
+            groups.append((f"{key[0]}年{key[1]}月", cur_list))
+        cur_list.append(p)
+    months_html = ""
+    for label, posts in groups:
+        rows = "".join(
+            f'<a class="archive-row" href="{p.url}">'
+            f'<span class="archive-dot"></span>'
+            f'<span class="archive-title">{util.html_escape(p.title)}</span>'
+            f'<span class="archive-date">{p.date.month:02d}-{p.date.day:02d}</span></a>'
+            for p in posts)
+        months_html += (
+            f'<div class="archive-month"><div class="archive-month-label">{label}</div>'
+            f'<div class="archive-timeline">{rows}</div></div>')
     t = load_template("archive.tpl")
-    nmap = name_map(sections)
-    content = t.substitute(
-        total=len(all_posts),
-        posts="\n".join(post_item_html(p, nmap) for p in all_posts))
+    content = t.substitute(total=len(all_posts), posts=months_html)
     return render_layout(cfg, f"归档 · {cfg['site']['title']}", "全部文章归档", content)
 
 
@@ -198,11 +339,21 @@ def build_tags(cfg, sections, all_posts):
         for tg in p.tags:
             tag_map.setdefault(tg, []).append(p)
     nmap = name_map(sections)
+    max_count = max((len(ps) for ps in tag_map.values()), default=1)
+
+    def tag_style(count):
+        ratio = count / max_count
+        size = 12 + 14 * ratio
+        weight = 700 if ratio > 0.6 else 500
+        opacity = round(45 + 40 * ratio)
+        return (f'font-size:{size:.1f}px;font-weight:{weight};'
+                f'color:color-mix(in srgb, var(--ink) {opacity}%, transparent)')
+
     idx_t = load_template("tag_index.tpl")
     tags_html_str = "\n".join(
-        f'<a class="tag" href="/tags/{util.slugify(t)}.html">'
+        f'<a class="tag-prop" style="{tag_style(len(ps))}" href="/tags/{util.slugify(t)}.html">'
         f'{util.html_escape(t)} <span class="c">({len(ps)})</span></a>'
-        for t, ps in sorted(tag_map.items()))
+        for t, ps in sorted(tag_map.items(), key=lambda kv: -len(kv[1])))
     idx = idx_t.substitute(total=len(tag_map), tags=tags_html_str)
     idx_page = render_layout(cfg, f"标签 · {cfg['site']['title']}", "按标签浏览", idx)
     pages = {}
@@ -214,6 +365,30 @@ def build_tags(cfg, sections, all_posts):
         pages[util.slugify(t)] = render_layout(
             cfg, f"{t} · {cfg['site']['title']}", f"标签 {t}", c)
     return idx_page, pages
+
+
+def build_feed(cfg, all_posts, limit=30):
+    base = cfg["site"].get("base_url", "").rstrip("/")
+    items = []
+    for p in all_posts[:limit]:
+        items.append(
+            "  <item>\n"
+            f"    <title>{util.html_escape(p.title)}</title>\n"
+            f"    <link>{base}{p.url}</link>\n"
+            f"    <guid>{base}{p.url}</guid>\n"
+            f"    <pubDate>{p.date.strftime('%a, %d %b %Y %H:%M:%S +0000')}</pubDate>\n"
+            f"    <description>{util.html_escape(p.summary)}</description>\n"
+            "  </item>"
+        )
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<rss version="2.0"><channel>\n'
+        f"  <title>{util.html_escape(cfg['site']['title'])}</title>\n"
+        f"  <link>{base}/</link>\n"
+        f"  <description>{util.html_escape(cfg['site'].get('description', ''))}</description>\n"
+        + "\n".join(items) +
+        "\n</channel></rss>\n"
+    )
 
 
 def write_file(path, content):
@@ -237,6 +412,7 @@ def main():
     write_file(os.path.join(PUBLIC, "tags", "index.html"), idx_page)
     for slug, page in tag_pages.items():
         write_file(os.path.join(PUBLIC, "tags", slug + ".html"), page)
+    write_file(os.path.join(PUBLIC, "feed.xml"), build_feed(cfg, all_posts))
     shutil.copyfile(os.path.join(STATIC, "style.css"),
                     os.path.join(PUBLIC, "style.css"))
     print(f"OK: {len(all_posts)} posts, {len(cfg['sections'])} sections -> {PUBLIC}")
@@ -244,3 +420,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

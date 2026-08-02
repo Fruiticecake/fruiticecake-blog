@@ -3,6 +3,8 @@
     <div class="meta">
       <a class="sec-badge sec-$slug" href="$section_url">$section_name</a>
       <time>$date</time>
+      <span class="reading-time">$reading_time</span>
+      $model_html
     </div>
     <h1>$title</h1>
     $tags_html
@@ -14,3 +16,4 @@
     <a href="/">首页</a>
   </footer>
 </article>
+

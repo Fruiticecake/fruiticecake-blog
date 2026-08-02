@@ -16,6 +16,7 @@ class Post:
     body_html: str = ""
     src_path: str = ""
     source: str = ""
+    model: str = ""
 
     @property
     def url(self):
@@ -25,6 +26,11 @@ class Post:
     def date_human(self):
         from util import bj_human
         return bj_human(self.date)
+
+    @property
+    def reading_time(self):
+        from util import reading_time_cn
+        return reading_time_cn(self.body_html)
 
 
 @dataclass
@@ -42,3 +48,4 @@ class Section:
     @property
     def count(self):
         return len(self.posts)
+
