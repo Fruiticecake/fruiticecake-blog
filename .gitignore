@@ -17,6 +17,9 @@ Thumbs.db
 .idea/
 *.swp
 
+# Isolated feature worktrees
+.worktrees/
+
 # Logs
 *.log
 
