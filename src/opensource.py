@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Iterable
 
@@ -22,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONTENT_DIR = ROOT / "content" / "opensource"
 MAX_PROJECTS = 12
 MIN_PROJECTS = 8
+BEIJING = datetime.timezone(datetime.timedelta(hours=8), name="UTC+08:00")
 
 
 class IncompleteDigestError(ValueError):
@@ -70,13 +72,13 @@ def recent_seen_names(content_dir: Path, date: datetime.date) -> set[str]:
     seen: set[str] = set()
     if not content_dir.exists():
         return seen
-    earliest = date - datetime.timedelta(days=6)
+    earliest = date - datetime.timedelta(days=7)
     for path in content_dir.glob("*.md"):
         try:
             file_date = datetime.date.fromisoformat(path.stem)
         except ValueError:
             continue
-        if earliest <= file_date <= date:
+        if earliest <= file_date < date:
             seen.update(match.lower() for match in re.findall(r"https://github\.com/([\w.-]+/[\w.-]+)", path.read_text(encoding="utf-8")))
     return seen
 
@@ -89,6 +91,14 @@ def _normalize_date(value: datetime.date | str) -> datetime.date:
     if isinstance(value, str):
         return datetime.date.fromisoformat(value)
     raise TypeError("date must be an ISO date string or datetime.date")
+
+
+def default_digest_date(now: datetime.datetime | None = None) -> datetime.date:
+    """Return the current calendar date in Beijing time, independent of host locale."""
+    current = now or datetime.datetime.now(datetime.timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=datetime.timezone.utc)
+    return current.astimezone(BEIJING).date()
 
 
 def _resolve_trends(briefs: list[ProjectBrief], supplied: list[str] | None) -> list[str]:
@@ -150,6 +160,8 @@ def collect_live_briefs(date: datetime.date, content_dir: Path) -> list[ProjectB
         raise RuntimeError("GITHUB_TOKEN is required for live open-source radar runs")
     candidates = collect_candidates(GitHubClient(token), date)
     ranked = select_candidates(candidates, recent_seen_names(content_dir, date), limit=MAX_PROJECTS)
+    if len(ranked) < MIN_PROJECTS:
+        raise IncompleteDigestError(f"Need at least {MIN_PROJECTS} ranked candidates; got {len(ranked)}")
     return [analyze_candidate(GitHubModelsClient(token), candidate, index < 3) for index, candidate in enumerate(ranked)]
 
 
@@ -157,17 +169,81 @@ def _target_path(content_dir: Path, date: datetime.date) -> Path:
     return content_dir / f"{date.isoformat()}.md"
 
 
+def _existing_digest_metadata(path: Path, date: datetime.date) -> tuple[int, int]:
+    """Validate a completed digest file and return its project and trend counts."""
+    return _digest_metadata(path.read_text(encoding="utf-8"), date)
+
+
+def _digest_metadata(document: str, date: datetime.date) -> tuple[int, int]:
+    if not document.startswith("---\n"):
+        raise ValueError("Digest is missing front matter")
+    try:
+        frontmatter_text, body = document[4:].split("\n---\n", 1)
+    except ValueError as error:
+        raise ValueError("Digest front matter is incomplete") from error
+    frontmatter: dict[str, object] = {}
+    for line in frontmatter_text.splitlines():
+        if ":" not in line:
+            raise ValueError("Digest front matter is malformed")
+        key, raw_value = line.split(":", 1)
+        try:
+            frontmatter[key.strip()] = json.loads(raw_value.strip())
+        except json.JSONDecodeError as error:
+            raise ValueError(f"Invalid front matter value for {key.strip()}") from error
+    required = {"date", "html", "section", "trend_1", "trend_2", "trend_3", "project_count"}
+    if not required.issubset(frontmatter):
+        raise ValueError("Digest front matter is missing required fields")
+    if frontmatter["date"] != date.isoformat() or frontmatter["html"] is not True:
+        raise ValueError("Digest front matter date or html flag is invalid")
+    if frontmatter["section"] != "opensource":
+        raise ValueError("Digest section is invalid")
+    trend_values = [frontmatter[f"trend_{number}"] for number in range(1, 4)]
+    if not all(isinstance(value, str) and value.strip() for value in trend_values):
+        raise ValueError("Digest trends are invalid")
+    project_count = frontmatter["project_count"]
+    if isinstance(project_count, bool) or not isinstance(project_count, int) or project_count < MIN_PROJECTS:
+        raise ValueError("Digest project count is invalid")
+    if '<section class="radar-digest">' not in body or '<section class="radar-trends">' not in body:
+        raise ValueError("Digest body is missing required sections")
+    if body.count('class="radar-feature"') != 3 or body.count('class="radar-quick"') != project_count - 3:
+        raise ValueError("Digest project structure is invalid")
+    return project_count, len(trend_values)
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    """Durably replace a digest while keeping the previous file intact on failure."""
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
+        ) as temporary:
+            temporary_path = Path(temporary.name)
+            temporary.write(content)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        os.replace(temporary_path, path)
+    except Exception:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        raise
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Generate the daily open-source radar digest")
-    parser.add_argument("--date", default=datetime.date.today().isoformat(), type=_normalize_date)
+    parser.add_argument("--date", default=default_digest_date().isoformat(), type=_normalize_date)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--fixture", type=Path)
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args(argv)
     content_dir = DEFAULT_CONTENT_DIR
     target = _target_path(content_dir, args.date)
-    if target.exists() and not args.force:
-        print(f"Open-source digest already exists: {target}")
+    existing_metadata = _existing_digest_metadata(target, args.date) if target.exists() else None
+    if existing_metadata is not None and not args.force:
+        project_count, trend_count = existing_metadata
+        if args.dry_run:
+            print(f"Dry run: {target} ({project_count} projects, {trend_count} trends)")
+        else:
+            print(f"Open-source digest already exists: {target} ({project_count} projects, {trend_count} trends)")
         return 0
     briefs = load_fixture(args.fixture) if args.fixture else collect_live_briefs(args.date, content_dir)
     digest = build_digest(briefs, args.date)
@@ -176,7 +252,9 @@ def main(argv: Iterable[str] | None = None) -> int:
         print(f"Dry run: {target} ({project_count} projects, {len(digest.trends)} trends)")
         return 0
     content_dir.mkdir(parents=True, exist_ok=True)
-    target.write_text(digest_markdown(digest), encoding="utf-8")
+    document = digest_markdown(digest)
+    _digest_metadata(document, args.date)
+    _atomic_write(target, document)
     print(f"Wrote {target} ({project_count} projects, {len(digest.trends)} trends)")
     return 0
 

@@ -40,7 +40,12 @@ def _render_project(brief: ProjectBrief, css_class: str, detailed: bool) -> str:
     candidate = brief.candidate
     name = _text(candidate.full_name)
     url = _github_url(getattr(candidate, "html_url", ""))
-    title = f'<a href="{_text(url)}">{name}</a>' if url else name
+    title = (
+        f'<a href="{_text(url)}" target="_blank" rel="noopener noreferrer" '
+        f'aria-label="在 GitHub 查看 {name}">{name}</a>'
+        if url
+        else name
+    )
     lines = [f'    <article class="{css_class}">', f"      <h3>{title}</h3>"]
     if brief.headline:
         lines.append(f"      <p>{_text(brief.headline)}</p>")
