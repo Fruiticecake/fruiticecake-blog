@@ -5,6 +5,7 @@
   --bg:#f3ead9;--surface:#fffaf2;--surface-alt:#efe1c8;
   --ink:#3a2e26;--ink-muted:rgba(58,46,38,.6);--ink-faint:rgba(58,46,38,.4);
   --line:rgba(58,46,38,.14);--accent:#c1704a;--accent-dark:#a85a37;
+  --radar:#4f7564;--radar-soft:#dce7df;
   --font-heading:"Newsreader",serif;--font-body:"Work Sans",system-ui,sans-serif;
   --shadow:0 6px 20px rgba(58,46,38,.10);--shadow-sm:0 2px 8px rgba(58,46,38,.08);
   --r-lg:22px;--r-md:16px;--r-sm:10px;
@@ -238,8 +239,104 @@ h1,h2,h3,h4{font-family:var(--font-heading);font-weight:600;margin:0}
 .tag-prop{text-decoration:none}
 .tag-prop .c{color:var(--ink-faint);font-size:.75em}
 
+/* Open Source Radar — editorial field notes with one restrained signal */
+.opensource-lead,
+.radar-hero{position:relative;isolation:isolate;overflow:hidden;display:grid;
+  grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:28px;min-height:280px;
+  margin-top:24px;padding:clamp(28px,5vw,56px);border:1px solid rgba(79,117,100,.32);
+  border-radius:var(--r-lg);background:var(--ink);color:var(--surface);box-shadow:var(--shadow)}
+.opensource-lead::before,
+.radar-hero::before{content:"";position:absolute;z-index:-2;top:-86px;right:-54px;width:330px;
+  aspect-ratio:1;border-radius:50%;border:1px solid rgba(220,231,223,.3);
+  background:repeating-radial-gradient(circle,transparent 0 48px,rgba(220,231,223,.18) 49px 50px)}
+.opensource-lead::after,
+.radar-sweep{content:"";position:absolute;z-index:-1;top:-86px;right:-54px;width:330px;
+  aspect-ratio:1;border-radius:50%;background:conic-gradient(from 0deg,
+    transparent 0 82%,rgba(220,231,223,.06) 87%,rgba(220,231,223,.52) 99%,transparent 100%);
+  animation:radar-scan 7s linear infinite;pointer-events:none}
+@keyframes radar-scan{to{transform:rotate(1turn)}}
+.opensource-lead>div{min-width:0;max-width:620px}
+.opensource-lead-kicker{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px;
+  color:var(--radar-soft);font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
+.opensource-project-count{display:inline-flex;align-items:center;gap:7px;padding:4px 10px;
+  border:1px solid rgba(220,231,223,.36);border-radius:999px;color:var(--surface)}
+.opensource-project-count::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--radar-soft)}
+.opensource-lead h2{max-width:16ch;font-size:clamp(30px,4.3vw,50px);font-style:italic;line-height:1.03;
+  text-wrap:balance}
+.opensource-lead p{max-width:54ch;margin:16px 0 0;color:rgba(255,250,242,.72);font-size:14px}
+.opensource-lead>span{position:relative;padding:9px 14px;border:1px solid rgba(220,231,223,.42);
+  border-radius:999px;color:var(--surface);font-size:12px;font-weight:700;white-space:nowrap}
+.opensource-lead:hover{color:var(--surface);text-decoration:none;border-color:var(--radar-soft)}
+.opensource-lead:hover>span{background:var(--radar-soft);color:var(--ink)}
+
+.opensource-trends,.opensource-rail,.opensource-history{margin-top:clamp(30px,5vw,48px)}
+.opensource-trends h2,.opensource-rail h2,.opensource-history h2,
+.radar-featured>h2,.radar-quick-list>h2{display:flex;align-items:center;gap:11px;margin-bottom:16px;
+  color:var(--ink-muted);font-family:var(--font-body);font-size:11px;font-style:normal;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase}
+.opensource-trends h2::before,.opensource-rail h2::before,.opensource-history h2::before,
+.radar-featured>h2::before,.radar-quick-list>h2::before{content:"";width:22px;height:2px;background:var(--radar)}
+.opensource-trends ol,.radar-trends ol{counter-reset:radar-trend;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:1px;margin:0;padding:1px;list-style:none;background:rgba(79,117,100,.22);border-radius:var(--r-md);overflow:hidden}
+.opensource-trends li,.radar-trends li{counter-increment:radar-trend;min-width:0;padding:20px;
+  background:var(--surface);color:var(--ink-muted);font-size:13px;overflow-wrap:anywhere}
+.opensource-trends li::before,.radar-trends li::before{content:"0" counter(radar-trend);display:block;margin-bottom:14px;
+  color:var(--radar);font-family:var(--font-heading);font-size:22px;font-style:italic;font-weight:600}
+.opensource-rail .streak-row{padding:4px 2px 10px;gap:8px}
+.opensource-rail .streak-day{border-color:rgba(79,117,100,.24);box-shadow:none}
+.opensource-rail .streak-day.active{position:relative;background:var(--radar);border-color:var(--radar);color:#fff}
+.opensource-rail .streak-day.active::after{content:"当前";position:absolute;top:-9px;left:50%;transform:translateX(-50%);
+  padding:0 5px;border-radius:999px;background:var(--surface);color:var(--radar);font-size:8px;font-weight:700}
+.opensource-history .aihot-list{margin-top:0;background:rgba(79,117,100,.18)}
+.opensource-history .aihot-list-row{border-left:3px solid transparent}
+.opensource-history .aihot-list-row:hover{border-left-color:var(--radar);text-decoration:none}
+.opensource-history .aihot-list-count{color:var(--radar)}
+
+.radar-digest{display:flex;flex-direction:column;gap:clamp(32px,5vw,52px);min-width:0}
+.radar-trends{padding:clamp(20px,4vw,32px);border:1px solid rgba(79,117,100,.26);
+  border-radius:var(--r-lg);background:linear-gradient(135deg,var(--radar-soft),rgba(220,231,223,.24))}
+.radar-trends h2{margin:0 0 18px;color:var(--radar);font-size:clamp(22px,3vw,30px);font-style:italic}
+.radar-trends ol{border:1px solid rgba(79,117,100,.18)}
+.radar-featured,.radar-quick-list,.radar-quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px;min-width:0}
+.radar-featured>h2,.radar-quick-list>h2{grid-column:1/-1;margin:0 0 2px}
+.radar-feature,.radar-quick{min-width:0;border:1px solid var(--line);background:var(--surface);overflow-wrap:anywhere}
+.radar-feature{padding:clamp(22px,3vw,32px);border-radius:var(--r-lg);box-shadow:var(--shadow-sm)}
+.radar-feature:first-of-type{grid-row:span 2;border-top:4px solid var(--radar);box-shadow:var(--shadow)}
+.radar-feature h3,.radar-quick h3{font-family:var(--font-heading);line-height:1.2}
+.radar-feature h3{font-size:clamp(22px,3vw,30px)}
+.radar-feature h3 a,.radar-quick h3 a{color:var(--ink);text-decoration:none}
+.radar-feature h3 a:hover,.radar-quick h3 a:hover{color:var(--radar);text-decoration:underline}
+.radar-feature p{margin:12px 0;color:var(--ink-muted);font-size:13.5px}
+.radar-feature p strong{display:block;margin-bottom:2px;color:var(--radar);font-size:10px;
+  letter-spacing:.07em;text-transform:uppercase}
+.radar-quick-list,.radar-quick-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.radar-quick{padding:18px;border-radius:var(--r-md)}
+.radar-quick h3{margin:0 0 10px;font-size:18px}
+.radar-quick p{margin:0;color:var(--ink-muted);font-size:12.5px}
+.difficulty-label,.radar-signal{display:inline-flex;align-items:center;gap:7px;width:max-content;max-width:100%;
+  margin-top:12px;padding:4px 10px;border:1px solid rgba(79,117,100,.32);border-radius:999px;
+  color:var(--radar);background:var(--radar-soft);font-size:10px;font-weight:700;letter-spacing:.04em}
+.difficulty-label::before,.radar-signal::before{content:"";width:6px;height:6px;flex:0 0 auto;border-radius:50%;
+  background:var(--radar)}
+.opensource-lead:focus-visible,.opensource-trends a:focus-visible,.opensource-rail a:focus-visible,
+.opensource-history a:focus-visible,.radar-feature a:focus-visible,.radar-quick a:focus-visible{
+  outline:3px solid var(--radar);outline-offset:4px}
+
+@media(prefers-reduced-motion:reduce){
+  .radar-sweep,.opensource-lead::after{animation:none}
+}
+
 @media(max-width:720px){
-  .home-top,.home-feature-row,.blog-feature,.blog-grid{grid-template-columns:1fr}
+  .home-top,.home-feature-row,.blog-feature,.blog-grid,.opensource-lead,
+  .radar-feature,.radar-featured,.radar-quick-grid,.radar-quick-list{grid-template-columns:1fr}
+  .opensource-lead{align-items:start;gap:22px;min-height:320px;padding:28px 22px}
+  .opensource-lead h2{font-size:34px}
+  .opensource-lead>span{justify-self:start}
+  .opensource-lead::before,.opensource-lead::after{top:-112px;right:-124px;width:300px}
+  .opensource-trends ol,.radar-trends ol{grid-template-columns:1fr}
+  .radar-feature:first-of-type{grid-row:auto}
+  .radar-featured>h2,.radar-quick-list>h2{grid-column:auto}
 }
 
 .site-footer{border-top:1px solid var(--line);margin-top:50px;padding-top:20px}
