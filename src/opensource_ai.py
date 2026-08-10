@@ -279,11 +279,15 @@ def _contains_unsafe_model_text(value: str) -> bool:
     if any(unicodedata.category(character) in {"Cc", "Cf"} for character in value):
         return True
     normalized = unicodedata.normalize("NFKC", value)
-    for _ in range(3):
+    for _ in range(8):
         decoded = unquote(normalized)
         if decoded == normalized:
             break
         normalized = decoded
+    if re.search(r"%[0-9a-f]{2}", normalized, re.I):
+        return True
+    if any(unicodedata.category(character) in {"Cc", "Cf"} for character in normalized):
+        return True
     folded = normalized.casefold()
     probe = re.sub(
         r"\[\s*(?:[.\u3002\uff61\ufe52]|dot)\s*\]|\(\s*(?:[.\u3002\uff61\ufe52]|dot)\s*\)",
