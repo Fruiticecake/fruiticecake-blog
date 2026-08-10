@@ -83,6 +83,43 @@ class SelectCandidatesTests(unittest.TestCase):
 
         self.assertEqual([item.full_name for item in selected], ["org/healthy"])
 
+    def test_default_limit_returns_twenty_with_proportional_category_targets(self):
+        candidates = [
+            candidate(f"org/{category}-{index}", category=category, trending_rank=index + 1)
+            for category, count in (("ai", 7), ("devtools", 5), ("platform", 5), ("other", 3))
+            for index in range(count)
+        ]
+
+        selected = select_candidates(candidates, set())
+
+        self.assertEqual(len(selected), 20)
+        self.assertEqual(
+            {category: sum(item.category == category for item in selected) for category in ("ai", "devtools", "platform", "other")},
+            {"ai": 7, "devtools": 5, "platform": 5, "other": 3},
+        )
+
+    def test_category_shortfall_is_backfilled_by_highest_ranked_candidates(self):
+        candidates = [
+            candidate(f"org/ai-{index}", category="ai", trending_rank=index + 1)
+            for index in range(20)
+        ]
+
+        selected = select_candidates(candidates, set())
+
+        self.assertEqual(len(selected), 20)
+        self.assertEqual({item.category for item in selected}, {"ai"})
+
+    def test_same_input_has_the_same_order_on_repeated_calls(self):
+        candidates = [
+            candidate("org/stale", trending_rank=None, pushed_days_ago=20),
+            candidate("org/fresh", trending_rank=None, pushed_days_ago=1),
+        ]
+
+        first = [item.full_name for item in select_candidates(candidates, set())]
+        second = [item.full_name for item in select_candidates(candidates, set())]
+
+        self.assertEqual(first, second)
+
 
 if __name__ == "__main__":
     unittest.main()

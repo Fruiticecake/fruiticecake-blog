@@ -5,7 +5,7 @@ import math
 from opensource_models import RepositoryCandidate
 
 
-CATEGORY_CAPS = {"ai": 5, "devtools": 4, "platform": 4, "other": 3}
+CATEGORY_WEIGHTS = {"ai": 0.35, "devtools": 0.25, "platform": 0.25, "other": 0.15}
 
 
 def score_candidate(
@@ -27,25 +27,50 @@ def select_candidates(
     candidates: list[RepositoryCandidate], seen: set[str], limit: int = 20
 ) -> list[RepositoryCandidate]:
     """Return eligible, de-duplicated candidates in a stable ranked order."""
-    now = datetime.datetime.now(tz=candidates[0].pushed_at.tzinfo) if candidates else datetime.datetime.now()
     unique: dict[str, RepositoryCandidate] = {}
     for candidate in candidates:
         key = candidate.full_name.lower()
         if key in unique or getattr(candidate, "archived", False) or getattr(candidate, "is_fork", False):
             continue
-        candidate.score = score_candidate(candidate, seen, now)
         unique[key] = candidate
 
+    if not unique or limit <= 0:
+        return []
+    now = max(
+        max(candidate.pushed_at, candidate.created_at) for candidate in unique.values()
+    )
+    for candidate in unique.values():
+        candidate.score = score_candidate(candidate, seen, now)
     ordered = sorted(unique.values(), key=lambda item: (-item.score, item.full_name.lower()))
-    caps = {category: CATEGORY_CAPS.get(category, CATEGORY_CAPS["other"]) for category in CATEGORY_CAPS}
+    target_limit = min(limit, len(ordered))
+    quotas = _category_quotas(target_limit)
     selected: list[RepositoryCandidate] = []
-    counts: dict[str, int] = {}
+    selected_names: set[str] = set()
+    for category in CATEGORY_WEIGHTS:
+        for candidate in ordered:
+            normalized_category = candidate.category if candidate.category in CATEGORY_WEIGHTS else "other"
+            if normalized_category == category and len(
+                [item for item in selected if (item.category if item.category in CATEGORY_WEIGHTS else "other") == category]
+            ) < quotas[category]:
+                selected.append(candidate)
+                selected_names.add(candidate.full_name.lower())
+
     for candidate in ordered:
-        category = candidate.category if candidate.category in caps else "other"
-        if counts.get(category, 0) >= caps[category]:
-            continue
-        selected.append(candidate)
-        counts[category] = counts.get(category, 0) + 1
-        if len(selected) == limit:
+        if len(selected) == target_limit:
             break
-    return selected
+        if candidate.full_name.lower() not in selected_names:
+            selected.append(candidate)
+            selected_names.add(candidate.full_name.lower())
+    return sorted(selected, key=lambda item: (-item.score, item.full_name.lower()))
+
+
+def _category_quotas(limit: int) -> dict[str, int]:
+    quotas = {category: int(limit * weight) for category, weight in CATEGORY_WEIGHTS.items()}
+    remaining = limit - sum(quotas.values())
+    fractions = sorted(
+        CATEGORY_WEIGHTS,
+        key=lambda category: (-(limit * CATEGORY_WEIGHTS[category] - quotas[category]), category),
+    )
+    for category in fractions[:remaining]:
+        quotas[category] += 1
+    return quotas
