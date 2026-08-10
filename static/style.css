@@ -285,9 +285,9 @@ h1,h2,h3,h4{font-family:var(--font-heading);font-weight:600;margin:0}
 .opensource-rail .streak-row{padding:4px 2px 10px;gap:8px}
 .opensource-rail .streak-day{border-color:rgba(79,117,100,.24);box-shadow:none}
 .opensource-rail .streak-wd{color:var(--ink);opacity:1}
-.opensource-rail .streak-day.active{position:relative;padding-top:17px;background:var(--radar);
-  border-color:var(--radar);color:#fff}
-.opensource-rail .streak-day.active .streak-wd{color:#fff}
+.opensource-rail .streak-day.active{position:relative;padding-top:17px;background:var(--surface);
+  border-color:var(--radar);color:var(--ink);box-shadow:inset 0 -3px 0 var(--radar)}
+.opensource-rail .streak-day.active .streak-wd{color:var(--radar)}
 .opensource-rail .streak-day.active::after{content:"当前";position:absolute;top:2px;left:50%;transform:translateX(-50%);
   padding:0 5px;border-radius:999px;background:var(--radar-soft);color:var(--ink);font-size:8px;font-weight:700}
 .opensource-history .aihot-list{margin-top:0;background:rgba(79,117,100,.18)}
@@ -317,9 +317,12 @@ h1,h2,h3,h4{font-family:var(--font-heading);font-weight:600;margin:0}
 .radar-quick{padding:18px;border-radius:var(--r-md)}
 .radar-quick h3{margin:0 0 10px;font-size:18px}
 .radar-quick p{margin:0;color:var(--ink);font-size:12.5px}
-.difficulty-label,.radar-signal{display:inline-flex;align-items:center;gap:7px;width:max-content;max-width:100%;
-  margin-top:12px;padding:4px 10px;border:1px solid rgba(79,117,100,.32);border-radius:999px;
-  color:var(--ink);background:var(--radar-soft);font-size:10px;font-weight:700;letter-spacing:.04em}
+.difficulty-label,.radar-signal{display:inline-flex;align-items:center;gap:7px;max-width:100%;
+  margin-top:12px;color:var(--ink);font-size:10px;font-weight:700;letter-spacing:.04em}
+.difficulty-label{width:max-content;padding:4px 10px;border:1px solid rgba(79,117,100,.32);
+  border-radius:999px;background:var(--radar-soft)}
+.radar-signal{width:auto;padding:8px 0 8px 12px;border-left:2px solid rgba(79,117,100,.48);
+  border-radius:0;background:transparent;line-height:1.35}
 .difficulty-label::before,.radar-signal::before{content:"";width:6px;height:6px;flex:0 0 auto;border-radius:50%;
   background:var(--radar)}
 .opensource-lead:focus-visible,.opensource-trends a:focus-visible,
