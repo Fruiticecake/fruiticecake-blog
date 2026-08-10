@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Iterable
 
 from opensource_ai import (
-    DEFAULT_ENDPOINT,
     DEFAULT_MODEL,
     BriefValidationError,
     DeepSeekClient,
@@ -185,7 +184,6 @@ def collect_live_briefs(date: datetime.date, content_dir: Path) -> list[ProjectB
     enrich_readmes(github_client, ranked, limit=MAX_ANALYSIS_CANDIDATES)
     model_client = DeepSeekClient(
         deepseek_key,
-        endpoint=os.environ.get("DEEPSEEK_ENDPOINT") or DEFAULT_ENDPOINT,
         model=os.environ.get("DEEPSEEK_MODEL") or DEFAULT_MODEL,
     )
     briefs: list[ProjectBrief] = []

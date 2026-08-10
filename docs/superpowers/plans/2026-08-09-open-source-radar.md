@@ -8,9 +8,11 @@
 
 **Tech Stack:** Python 3.11 standard library, `unittest`, GitHub REST API, DeepSeek chat-completions API, existing HTML/CSS static generator, GitHub Actions, Vercel, browser-based E2E verification.
 
-**Provider correction (final review):** The original GitHub Models integration was retired before release. Live generation now uses `DEEPSEEK_API_KEY` with `DEEPSEEK_ENDPOINT` defaulting to `https://api.deepseek.com/chat/completions` and `DEEPSEEK_MODEL` defaulting to `deepseek-v4-flash`. Requests use JSON-object mode with thinking disabled. `GITHUB_TOKEN` is used only for GitHub repository data. A live run without either required key fails closed; committed historical digests remain renderable by the static generator without any key.
+**Provider correction (final review):** The original GitHub Models integration was retired before release. Live generation now uses `DEEPSEEK_API_KEY` against the fixed canonical endpoint `https://api.deepseek.com/chat/completions`; endpoint overrides and redirects are rejected. `DEEPSEEK_MODEL` defaults to `deepseek-v4-flash`. Requests use JSON-object mode with thinking disabled. `GITHUB_TOKEN` is used only for GitHub repository data. A live run without either required key fails closed; committed historical digests remain renderable by the static generator without any key.
 
 **Final review round 2 correction:** Ranking now exposes a two-stage contract. `rank_candidates(..., limit=20)` returns the complete eligible analysis reserve without publication category truncation. After bounded README enrichment and independent model validation, `select_briefs(..., limit=12, minimum=8)` applies publication targets and caps, with cap-crossing backfill limited to the safe minimum. Workflow-dispatch dry runs gate AI HOT and commit/push while passing `--dry-run` to radar. Generator parsing JSON-decodes machine-written frontmatter values while retaining legacy unquoted values.
+
+**Final security review correction:** DeepSeek and GitHub response envelopes have byte limits before parsing. Trend evidence and quick-start guidance are deterministic rather than model-authored; remaining model strings reject URLs, Markdown/autolinks, dangerous command patterns, and Unicode controls/formats. Checkout credentials are not persisted, and push authentication is exposed only to the final publishing step.
 
 ## Global Constraints
 
@@ -192,7 +194,7 @@ git commit -m "feat: collect GitHub project candidates"
 **Interfaces:**
 - Consumes: `RepositoryCandidate` and produces `ProjectBrief` from Task 1.
 - Produces: `validate_brief(data: dict, candidate: RepositoryCandidate) -> ProjectBrief`.
-- Produces: `DeepSeekClient(token: str, model: str = "deepseek-v4-flash", endpoint: str = "https://api.deepseek.com/chat/completions", timeout: int = 60)`.
+- Produces: `DeepSeekClient(token: str, model: str = "deepseek-v4-flash", endpoint: str = canonical_endpoint, timeout: int = 60)`; any noncanonical endpoint is rejected and the default transport refuses redirects.
 - Produces: `analyze_candidate(client: DeepSeekClient, candidate: RepositoryCandidate, featured: bool, *, sleeper, retry_delay) -> ProjectBrief`.
 
 - [ ] **Step 1: Add strict validation tests**

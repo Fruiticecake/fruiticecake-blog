@@ -12,6 +12,7 @@ EXPECTED_PIPELINE = [
 ]
 GITHUB_TOKEN_ENV = "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}"
 DEEPSEEK_TOKEN_ENV = "DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}"
+PUSH_TOKEN_ENV = "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}"
 NON_DRY_RUN_GATE = "if: ${{ inputs['dry-run'] != true }}"
 
 
@@ -44,6 +45,10 @@ def _assert_workflow_contract(test_case, text):
     test_case.assertRegex(text, r"(?m)^\s{8}type:\s*string\s*$")
     test_case.assertRegex(text, r"(?m)^\s{6}dry-run:\s*$")
     test_case.assertRegex(text, r"(?m)^\s{8}type:\s*boolean\s*$")
+    test_case.assertRegex(
+        text,
+        r"(?ms)^      - uses: actions/checkout@v4\s*\n        with:\s*\n          persist-credentials: false\s*$",
+    )
 
     steps = _extract_named_step_blocks(text)
     test_case.assertEqual(EXPECTED_PIPELINE, [name for name, _ in steps])
@@ -88,7 +93,12 @@ def _assert_workflow_contract(test_case, text):
     test_case.assertIn("run: python3 src/generator.py", blocks["Generate site"])
     commit = blocks["Commit & push"]
     test_case.assertRegex(commit, rf"(?m)^        {re.escape(NON_DRY_RUN_GATE)}\s*$")
+    test_case.assertRegex(commit, rf"(?m)^          {re.escape(PUSH_TOKEN_ENV)}\s*$")
+    test_case.assertRegex(commit, r"(?m)^          gh auth setup-git\s*$")
     test_case.assertNotIn(NON_DRY_RUN_GATE, radar)
+    for name, block in steps:
+        if name != "Commit & push":
+            test_case.assertNotIn(PUSH_TOKEN_ENV, block)
 
 
 class WorkflowConfigurationTests(unittest.TestCase):
@@ -157,6 +167,25 @@ class WorkflowConfigurationTests(unittest.TestCase):
                 self.assertNotEqual(text, mutated)
                 with self.assertRaises(AssertionError):
                     _assert_workflow_contract(self, mutated)
+
+    def test_contract_rejects_persisted_checkout_credentials(self):
+        text = Path(".github/workflows/build.yml").read_text(encoding="utf-8")
+        mutated = text.replace("          persist-credentials: false\n", "")
+
+        self.assertNotEqual(text, mutated)
+        with self.assertRaises(AssertionError):
+            _assert_workflow_contract(self, mutated)
+
+    def test_contract_rejects_push_token_outside_final_step(self):
+        text = Path(".github/workflows/build.yml").read_text(encoding="utf-8")
+        mutated = text.replace(f"          {PUSH_TOKEN_ENV}\n", "").replace(
+            "      - name: Run tests\n",
+            f"      - name: Run tests\n        env:\n          {PUSH_TOKEN_ENV}\n",
+        )
+
+        self.assertNotEqual(text, mutated)
+        with self.assertRaises(AssertionError):
+            _assert_workflow_contract(self, mutated)
 
 
 if __name__ == "__main__":

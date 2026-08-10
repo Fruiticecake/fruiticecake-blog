@@ -16,7 +16,20 @@ LOGGER = logging.getLogger(__name__)
 GITHUB_API = "https://api.github.com"
 GITHUB_TRENDING = "https://github.com/trending"
 README_LIMIT = 18_000
+MAX_GITHUB_JSON_BYTES = 2_000_000
+MAX_TRENDING_BYTES = 1_000_000
 EXPECTED_SOURCE_ERRORS = (OSError, json.JSONDecodeError, UnicodeDecodeError, binascii.Error)
+
+
+class SourceResponseTooLarge(OSError):
+    """Raised when a remote response exceeds its endpoint-specific bound."""
+
+
+def _read_bounded(response, limit: int) -> bytes:
+    body = response.read(limit + 1)
+    if len(body) > limit:
+        raise SourceResponseTooLarge("Remote response body is too large")
+    return body
 
 
 class _TrendingParser(HTMLParser):
@@ -72,13 +85,13 @@ class GitHubClient:
             headers["Authorization"] = f"Bearer {self.token}"
         request = Request(url, headers=headers)
         with urlopen(request, timeout=self.timeout) as response:
-            return json.loads(response.read().decode("utf-8"))
+            return json.loads(_read_bounded(response, MAX_GITHUB_JSON_BYTES).decode("utf-8"))
 
     def fetch_trending(self) -> list[dict]:
         headers = {"User-Agent": "WorkBuddy Open Source Radar", "Accept": "text/html"}
         request = Request(GITHUB_TRENDING, headers=headers)
         with urlopen(request, timeout=self.timeout) as response:
-            return parse_trending(response.read().decode("utf-8"))
+            return parse_trending(_read_bounded(response, MAX_TRENDING_BYTES).decode("utf-8"))
 
     def search_repositories(self, query: str, limit: int) -> list[dict]:
         params = urlencode({"q": query, "per_page": limit, "sort": "stars", "order": "desc"})

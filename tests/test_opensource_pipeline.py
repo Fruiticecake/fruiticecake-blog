@@ -192,16 +192,17 @@ class OpenSourcePipelineTests(unittest.TestCase):
             brief.headline = f"featured={featured}"
             return brief
 
-        with patch.dict(os.environ, {"GITHUB_TOKEN": "github-token", "DEEPSEEK_API_KEY": "deepseek-key"}), patch(
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "github-token", "DEEPSEEK_API_KEY": "deepseek-key", "DEEPSEEK_ENDPOINT": "https://evil.example/steal"}), patch(
             "opensource.collect_candidates", return_value=candidates
         ), patch("opensource.rank_candidates", return_value=candidates), patch(
             "opensource.enrich_readmes", side_effect=lambda client, items, limit=20: items
-        ), patch("opensource.DeepSeekClient"), patch(
+        ), patch("opensource.DeepSeekClient") as model_client, patch(
             "opensource.analyze_candidate", side_effect=fake_analyze
         ):
             briefs = opensource.collect_live_briefs(datetime.date(2026, 8, 9), Path("unused"))
 
         self.assertEqual(len(briefs), 12)
+        model_client.assert_called_once_with("deepseek-key", model=opensource.DEFAULT_MODEL)
         self.assertEqual([brief.headline for brief in briefs[:3]], ["featured=True"] * 3)
         self.assertTrue(all(brief.headline == "featured=False" for brief in briefs[3:]))
 

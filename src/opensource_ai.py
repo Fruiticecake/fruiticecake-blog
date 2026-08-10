@@ -1,8 +1,11 @@
 """Structured DeepSeek analysis for the open-source radar."""
 import json
+import re
 import time
+import unicodedata
 from typing import Callable
-from urllib.request import Request, urlopen
+from urllib.error import HTTPError
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from opensource_models import ProjectBrief, RepositoryCandidate
 
@@ -10,6 +13,7 @@ from opensource_models import ProjectBrief, RepositoryCandidate
 DEFAULT_ENDPOINT = "https://api.deepseek.com/chat/completions"
 DEFAULT_MODEL = "deepseek-v4-flash"
 MAX_RETRY_DELAY = 30.0
+MAX_RESPONSE_BYTES = 2_000_000
 DIFFICULTIES = frozenset({"容易", "中等", "较难"})
 FIELD_LIMITS = {
     "headline": 240,
@@ -32,6 +36,17 @@ class ModelTransportError(RuntimeError):
     """Raised for an expected DeepSeek transport failure."""
 
 
+class _NoRedirectHandler(HTTPRedirectHandler):
+    """Reject redirects before urllib can copy authorization to another request."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise HTTPError(req.full_url, code, "DeepSeek redirects are forbidden", headers, fp)
+
+
+def _default_transport(request: Request, timeout: int):
+    return build_opener(_NoRedirectHandler()).open(request, timeout=timeout)
+
+
 def validate_brief(data: dict, candidate: RepositoryCandidate) -> ProjectBrief:
     """Convert a complete, bounded model object into a project brief."""
     if not isinstance(data, dict) or set(data) != set(FIELD_LIMITS):
@@ -45,7 +60,17 @@ def validate_brief(data: dict, candidate: RepositoryCandidate) -> ProjectBrief:
     if data["difficulty"] not in DIFFICULTIES:
         raise BriefValidationError("Invalid difficulty")
 
-    brief = ProjectBrief(candidate=candidate, **data)
+    for field in set(FIELD_LIMITS) - {"why_trending", "quick_start", "difficulty"}:
+        if _contains_unsafe_model_text(data[field]):
+            raise BriefValidationError(f"Unsafe {field}")
+
+    validated = dict(data)
+    validated["why_trending"] = _trend_evidence(candidate)
+    validated["quick_start"] = (
+        "Read the repository README and license, then try official examples in an "
+        "isolated environment."
+    )
+    brief = ProjectBrief(candidate=candidate, **validated)
     # Compatibility attribute for renderers that consume the repository URL directly.
     brief.repository_url = candidate.html_url
     return brief
@@ -64,9 +89,11 @@ class DeepSeekClient:
     ):
         self.token = token
         self.model = model
-        self.endpoint = endpoint
+        if endpoint != DEFAULT_ENDPOINT:
+            raise ValueError("DeepSeek endpoint must use the canonical API URL")
+        self.endpoint = DEFAULT_ENDPOINT
         self.timeout = timeout
-        self.transport = transport or urlopen
+        self.transport = transport or _default_transport
 
     def complete(self, candidate: RepositoryCandidate, featured: bool) -> dict:
         """Request one JSON-object completion."""
@@ -94,17 +121,23 @@ class DeepSeekClient:
         )
         try:
             response = self.transport(request, timeout=self.timeout)
-        except OSError as error:
-            raise ModelTransportError(f"DeepSeek request failed: {error}") from error
+        except OSError:
+            raise ModelTransportError("DeepSeek request failed") from None
         try:
             try:
-                body = response.read() if hasattr(response, "read") else response
-            except OSError as error:
-                raise ModelTransportError(f"DeepSeek response read failed: {error}") from error
+                body = (
+                    response.read(MAX_RESPONSE_BYTES + 1)
+                    if hasattr(response, "read")
+                    else response
+                )
+            except OSError:
+                raise ModelTransportError("DeepSeek response read failed") from None
         finally:
             close = getattr(response, "close", None)
             if callable(close):
                 close()
+        if not isinstance(body, (bytes, str)) or len(body) > MAX_RESPONSE_BYTES:
+            raise ModelTransportError("DeepSeek response body is too large")
         try:
             parsed = json.loads(body.decode("utf-8") if isinstance(body, bytes) else body)
             result = json.loads(parsed["choices"][0]["message"]["content"])
@@ -175,3 +208,38 @@ def _clean_text(value: object, limit: int) -> str:
     if not isinstance(value, str):
         return ""
     return " ".join(value.replace("\x00", " ").split())[:limit]
+
+
+def _trend_evidence(candidate: RepositoryCandidate) -> str:
+    facts = []
+    if candidate.trending_rank is not None:
+        facts.append(f"GitHub Trending rank #{candidate.trending_rank}")
+    if candidate.stars_today is not None:
+        facts.append(f"{candidate.stars_today} stars today")
+    if candidate.repeat_reason:
+        growth = candidate.stars_today if candidate.stars_today is not None else "exceptional"
+        facts.append(
+            "Exceptional seven-day repeat because recent growth reached "
+            f"{growth} stars today"
+        )
+    if not facts:
+        return "No recent GitHub Trending rank or daily star signal is available."
+    return "; ".join(fact.rstrip(".") for fact in facts) + "."
+
+
+_UNSAFE_MODEL_PATTERNS = (
+    re.compile(r"\b[a-z][a-z0-9+.-]{1,20}://|\b(?:www\.|mailto:)", re.I),
+    re.compile(r"!?\[[^\]]*\]\([^)]*\)"),
+    re.compile(r"<[^<>\s]+@[^<>\s]+>|(?:\*\*|~~).+?(?:\*\*|~~)"),
+    re.compile(r"`|(^|\n)\s{0,3}(?:#{1,6}|[-*+]|>)\s", re.M),
+    re.compile(r"\b(?:curl|wget|powershell|pwsh|invoke-webrequest|invoke-restmethod|sudo)\b", re.I),
+    re.compile(r"\b(?:bash|sh)\s+-c\b|\|\s*(?:bash|sh)\b", re.I),
+    re.compile(r"\bcmd(?:\.exe)?\s+/c\b", re.I),
+    re.compile(r"\brm\s+-[a-z]*r[a-z]*f\b", re.I),
+)
+
+
+def _contains_unsafe_model_text(value: str) -> bool:
+    if any(unicodedata.category(character) in {"Cc", "Cf"} for character in value):
+        return True
+    return any(pattern.search(value) for pattern in _UNSAFE_MODEL_PATTERNS)

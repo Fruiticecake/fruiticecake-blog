@@ -156,9 +156,13 @@ AI 服务通过环境变量配置，密钥只保存在 GitHub Actions Secrets �
 
 The originally planned GitHub Models dependency was retired before release. New live digests use DeepSeek's official chat-completions contract instead:
 
-- default endpoint: `https://api.deepseek.com/chat/completions` (`DEEPSEEK_ENDPOINT` may override it);
+- fixed endpoint: exactly `https://api.deepseek.com/chat/completions`; endpoint overrides and redirects are rejected before authorization can be resent;
 - default model: `deepseek-v4-flash` (`DEEPSEEK_MODEL` may override it);
 - authentication: `DEEPSEEK_API_KEY` as a bearer token;
+- structured output: `response_format: {"type": "json_object"}`;
+- reasoning mode: `thinking: {"type": "disabled"}`.
+
+`GITHUB_TOKEN` remains isolated to GitHub Trending/Search/repository/README collection and is never reused as model authentication. Live generation fails closed when either required key is missing; the deterministic static build of committed historical digests remains network-free and keyless. No deterministic non-AI brief fallback is allowed because it would silently publish a lower-confidence product under the same editorial contract.
 
 ### 5.4 Two-stage reserve and publication selection
 
@@ -167,10 +171,12 @@ Candidate ranking and publication category selection are intentionally separate.
 Only validated briefs enter publication selection. The final 8-12 projects follow the 35/25/25/15 targets and the 12-item caps (5 AI, 4 developer tools, 4 platform, 3 other) as far as the available validated briefs allow. When the source pool cannot provide enough categories, selection may cross a cap only to reach the safe minimum of eight.
 
 For manual workflow dispatch, `dry-run` executes radar diagnostics with `--dry-run` but gates both the write-capable AI HOT step and the commit/push step. Push and scheduled events remain publishing runs.
-- structured output: `response_format: {"type": "json_object"}`;
-- reasoning mode: `thinking: {"type": "disabled"}`.
 
-`GITHUB_TOKEN` remains isolated to GitHub Trending/Search/repository/README collection and is never reused as model authentication. Live generation fails closed when either required key is missing; the deterministic static build of committed historical digests remains network-free and keyless. No deterministic non-AI brief fallback is allowed because it would silently publish a lower-confidence product under the same editorial contract.
+### 5.5 Model-output and transport safety
+
+Model output is untrusted even when it satisfies the JSON schema. `why_trending` is derived only from candidate rank, daily stars, and the deterministic exceptional-repeat condition. `quick_start` is replaced with a fixed recommendation to review README/license and try official examples in isolation; model-generated install commands are never published. Other model fields reject URLs, Markdown/autolinks, executable/download/shell patterns, and Unicode control or format characters while retaining ordinary Chinese and technical prose.
+
+DeepSeek and GitHub response bodies are read with endpoint-specific byte limits before parsing. Oversized DeepSeek responses fail closed; oversized GitHub source responses enter only the same bounded expected-source fallback paths as network failures. The workflow disables checkout credential persistence and exposes push authentication only to the final non-dry-run commit step; the DeepSeek key remains scoped only to radar generation.
 
 ## 6. 文件与模块边界
 

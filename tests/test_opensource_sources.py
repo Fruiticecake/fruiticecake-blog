@@ -184,6 +184,24 @@ class SourceTests(unittest.TestCase):
 
         self.assertEqual(readme, base64.b64decode(load_json("readme.json")["content"]).decode("utf-8"))
 
+    @patch("opensource_sources.urlopen")
+    def test_github_json_response_body_is_bounded(self, mock_urlopen):
+        response = unittest.mock.MagicMock()
+        response.read.side_effect = lambda size=-1: b"x" * (size if size > 0 else 2_000_001)
+        mock_urlopen.return_value.__enter__.return_value = response
+
+        with self.assertRaisesRegex(OSError, "too large"):
+            GitHubClient("secret").search_repositories("stars:>=50", 3)
+
+    @patch("opensource_sources.urlopen")
+    def test_trending_response_body_is_bounded(self, mock_urlopen):
+        response = unittest.mock.MagicMock()
+        response.read.side_effect = lambda size=-1: b"x" * (size if size > 0 else 1_000_001)
+        mock_urlopen.return_value.__enter__.return_value = response
+
+        with self.assertRaisesRegex(OSError, "too large"):
+            GitHubClient("secret").fetch_trending()
+
 
 if __name__ == "__main__":
     unittest.main()
