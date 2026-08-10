@@ -1,4 +1,5 @@
 import datetime
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -12,6 +13,16 @@ from opensource_render import render_digest
 
 
 NOW = datetime.datetime(2026, 8, 9, 12, 0, 0)
+CSS_PATH = Path(__file__).resolve().parents[1] / "static" / "style.css"
+
+
+def css_declarations(selector: str) -> str:
+    css = CSS_PATH.read_text(encoding="utf-8")
+    for selector_group, declarations in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+        selectors = [item.strip() for item in selector_group.split(",")]
+        if selector in selectors:
+            return re.sub(r"\s+", "", declarations)
+    raise AssertionError(f"Missing CSS selector: {selector}")
 
 
 def build_fixture_page() -> str:
@@ -55,6 +66,33 @@ class OpenSourceMarkupTests(unittest.TestCase):
         self.assertEqual(page.count('target="_blank" rel="noopener noreferrer"'), 12)
         self.assertIn('aria-label="在 GitHub 查看 sample/agent-kit"', page)
         self.assertIn('<span class="difficulty-label">中等</span>', page)
+
+    def test_clipped_radar_containers_use_internal_focus_indicators(self):
+        for selector in (
+            ".opensource-rail .streak-day:focus-visible",
+            ".opensource-history .aihot-list-row:focus-visible",
+        ):
+            with self.subTest(selector=selector):
+                declarations = css_declarations(selector)
+                self.assertIn("box-shadow:inset", declarations)
+                self.assertNotIn("outline-offset:4px", declarations)
+
+    def test_radar_body_copy_and_small_labels_use_opaque_ink(self):
+        selectors = (
+            ".opensource-trends h2",
+            ".opensource-trends li",
+            ".opensource-rail .streak-wd",
+            ".opensource-history .aihot-list-headline",
+            ".opensource-history .aihot-list-count",
+            ".radar-feature p",
+            ".radar-feature p strong",
+            ".radar-quick p",
+            ".difficulty-label",
+            ".radar-signal",
+        )
+        for selector in selectors:
+            with self.subTest(selector=selector):
+                self.assertIn("color:var(--ink)", css_declarations(selector))
 
 
 if __name__ == "__main__":
