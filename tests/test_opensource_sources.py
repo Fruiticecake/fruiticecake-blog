@@ -23,22 +23,27 @@ def load_json(name):
 
 
 class FakeGitHubClient:
-    def __init__(self, trending_error=None):
+    def __init__(self, trending_error=None, trending_items=None, search_error_on_call=None):
         self.trending_error = trending_error
+        self.trending_items = trending_items
+        self.search_error_on_call = search_error_on_call
         self.search_calls = []
         self.items = load_json("search.json")["items"]
+        self.repository_data = {item["full_name"]: item for item in self.items}
 
     def fetch_trending(self):
         if self.trending_error:
             raise self.trending_error
-        return parse_trending(fixture("trending.html"))
+        return self.trending_items if self.trending_items is not None else parse_trending(fixture("trending.html"))
 
     def search_repositories(self, query, limit):
         self.search_calls.append((query, limit))
+        if len(self.search_calls) == self.search_error_on_call:
+            raise RuntimeError("temporary GitHub outage")
         return self.items[:limit]
 
     def get_repository(self, full_name):
-        return next(item for item in self.items if item["full_name"] == full_name)
+        return self.repository_data[full_name]
 
     def get_readme(self, full_name):
         return "README " + ("x" * 18001)
@@ -68,6 +73,30 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(agent.stars_today, 842)
         self.assertFalse(agent.archived)
         self.assertFalse(agent.is_fork)
+
+    def test_collect_candidates_includes_trending_only_repository(self):
+        client = FakeGitHubClient(
+            trending_items=[{"full_name": "sample/trending-only", "rank": 1, "stars_today": 842}]
+        )
+        repository = load_json("repository.json")
+        repository["full_name"] = "sample/trending-only"
+        repository["html_url"] = "https://github.com/sample/trending-only"
+        client.items = []
+        client.repository_data = {"sample/trending-only": repository}
+
+        result = collect_candidates(client, datetime.date(2026, 8, 9))
+
+        self.assertEqual([item.full_name for item in result], ["sample/trending-only"])
+        self.assertEqual(result[0].trending_rank, 1)
+        self.assertEqual(result[0].stars_today, 842)
+
+    def test_collect_candidates_keeps_first_search_results_when_second_search_fails(self):
+        client = FakeGitHubClient(search_error_on_call=2)
+
+        result = collect_candidates(client, datetime.date(2026, 8, 9))
+
+        self.assertEqual(len(result), 8)
+        self.assertEqual(len(client.search_calls), 2)
 
     @patch("opensource_sources.urlopen")
     def test_github_client_requests_json_with_required_headers_and_bearer_token(self, mock_urlopen):

@@ -134,8 +134,15 @@ def collect_candidates(client: GitHubClient, date: datetime.date) -> list[Reposi
     ]
     repositories = {}
     for query in queries:
-        for item in client.search_repositories(query, 50):
+        try:
+            search_results = client.search_repositories(query, 50)
+        except Exception as error:
+            LOGGER.warning("GitHub search unavailable for %r; continuing: %s", query, error)
+            continue
+        for item in search_results:
             repositories.setdefault(item["full_name"].lower(), item)
+    for key, trend in trending.items():
+        repositories.setdefault(key, {"full_name": trend["full_name"]})
 
     candidates = []
     for key, search_item in repositories.items():
