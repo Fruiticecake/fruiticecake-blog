@@ -12,6 +12,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from opensource_models import ProjectBrief, RepositoryCandidate
+from opensource_ai import BriefValidationError, ModelTransportError
 from opensource_render import render_digest
 import opensource
 from opensource import IncompleteDigestError, build_digest
@@ -132,6 +133,17 @@ class OpenSourcePipelineTests(unittest.TestCase):
         self.assertEqual(len(digest.trends), 3)
         self.assertTrue(all("Ranked" in trend for trend in digest.trends))
 
+    def test_build_digest_preserves_the_actual_collection_time(self):
+        collected_at = datetime.datetime(2026, 8, 9, 18, 42, tzinfo=opensource.BEIJING)
+
+        digest = build_digest(
+            sample_briefs(),
+            date="2026-08-09",
+            generated_at=collected_at,
+        )
+
+        self.assertEqual(digest.generated_at, collected_at)
+
     def test_recent_seen_names_uses_the_prior_seven_complete_days_only(self):
         date = datetime.date(2026, 8, 9)
         with tempfile.TemporaryDirectory() as directory:
@@ -151,16 +163,71 @@ class OpenSourcePipelineTests(unittest.TestCase):
 
     def test_live_pipeline_stops_before_model_calls_when_ranked_candidates_are_incomplete(self):
         candidates = [brief.candidate for brief in sample_briefs(count=7)]
-        with patch.dict(os.environ, {"GITHUB_TOKEN": "token"}), patch(
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "github-token", "DEEPSEEK_API_KEY": "deepseek-key"}), patch(
             "opensource.collect_candidates", return_value=candidates
         ), patch("opensource.select_candidates", return_value=candidates), patch(
-            "opensource.GitHubModelsClient"
+            "opensource.DeepSeekClient"
         ) as model_client, patch("opensource.analyze_candidate") as analyze:
             with self.assertRaises(IncompleteDigestError):
                 opensource.collect_live_briefs(datetime.date(2026, 8, 9), Path("unused"))
 
         model_client.assert_not_called()
         analyze.assert_not_called()
+
+    def test_live_pipeline_uses_ranked_buffer_and_bases_featured_on_success_position(self):
+        candidates = [brief.candidate for brief in sample_briefs(count=20)]
+        failures = {
+            "sample/project-1": BriefValidationError("bad schema"),
+            "sample/project-4": ModelTransportError("temporary outage"),
+            "sample/project-7": BriefValidationError("bad schema"),
+        }
+
+        def fake_analyze(client, candidate, featured):
+            if candidate.full_name in failures:
+                raise failures[candidate.full_name]
+            brief = sample_briefs(count=1)[0]
+            brief.candidate = candidate
+            brief.headline = f"featured={featured}"
+            return brief
+
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "github-token", "DEEPSEEK_API_KEY": "deepseek-key"}), patch(
+            "opensource.collect_candidates", return_value=candidates
+        ), patch("opensource.select_candidates", return_value=candidates), patch(
+            "opensource.enrich_readmes", side_effect=lambda client, items, limit=20: items
+        ), patch("opensource.DeepSeekClient"), patch(
+            "opensource.analyze_candidate", side_effect=fake_analyze
+        ):
+            briefs = opensource.collect_live_briefs(datetime.date(2026, 8, 9), Path("unused"))
+
+        self.assertEqual(len(briefs), 12)
+        self.assertEqual([brief.headline for brief in briefs[:3]], ["featured=True"] * 3)
+        self.assertTrue(all(brief.headline == "featured=False" for brief in briefs[3:]))
+
+    def test_live_pipeline_fails_only_when_fewer_than_eight_briefs_validate(self):
+        candidates = [brief.candidate for brief in sample_briefs(count=20)]
+        successful = iter(sample_briefs(count=7))
+
+        def mostly_invalid(client, candidate, featured):
+            if int(candidate.full_name.rsplit("-", 1)[1]) > 7:
+                raise BriefValidationError("invalid")
+            brief = next(successful)
+            brief.candidate = candidate
+            return brief
+
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "github-token", "DEEPSEEK_API_KEY": "deepseek-key"}), patch(
+            "opensource.collect_candidates", return_value=candidates
+        ), patch("opensource.select_candidates", return_value=candidates), patch(
+            "opensource.enrich_readmes", side_effect=lambda client, items, limit=20: items
+        ), patch("opensource.DeepSeekClient"), patch(
+            "opensource.analyze_candidate", side_effect=mostly_invalid
+        ):
+            with self.assertRaises(IncompleteDigestError):
+                opensource.collect_live_briefs(datetime.date(2026, 8, 9), Path("unused"))
+
+    def test_live_pipeline_requires_a_separate_deepseek_key(self):
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "github-token"}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "DEEPSEEK_API_KEY"):
+                opensource.collect_live_briefs(datetime.date(2026, 8, 9), Path("unused"))
 
     def test_existing_valid_digest_dry_run_reports_counts_without_collection(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -187,6 +254,33 @@ class OpenSourcePipelineTests(unittest.TestCase):
                     opensource.main(["--date", "2026-08-09", "--fixture", "tests/fixtures/briefs.json"])
 
             self.assertEqual(target.read_text(encoding="utf-8"), original)
+
+    def test_force_repairs_an_invalid_existing_digest_atomically(self):
+        with tempfile.TemporaryDirectory() as directory:
+            content_dir = Path(directory)
+            target = content_dir / "2026-08-09.md"
+            target.write_text("partial write", encoding="utf-8")
+            with patch.object(opensource, "DEFAULT_CONTENT_DIR", content_dir):
+                exit_code = opensource.main([
+                    "--date", "2026-08-09", "--fixture", "tests/fixtures/briefs.json", "--force"
+                ])
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(opensource._existing_digest_metadata(target, datetime.date(2026, 8, 9)), (12, 3))
+            self.assertEqual(list(content_dir.glob("*.tmp")), [])
+
+    def test_frontmatter_keeps_raw_trend_text_for_single_render_boundary_escape(self):
+        digest = build_digest(
+            sample_briefs(),
+            date="2026-08-09",
+            trends=["R&D <tools>", "trend two", "trend three"],
+        )
+
+        frontmatter = opensource.digest_markdown(digest).split("---", 2)[1]
+
+        self.assertIn('"R&D <tools>"', frontmatter)
+        self.assertNotIn("&amp;", frontmatter)
+        self.assertNotIn("&lt;", frontmatter)
 
     def test_existing_digest_with_more_than_twelve_projects_fails_without_overwrite(self):
         with tempfile.TemporaryDirectory() as directory:

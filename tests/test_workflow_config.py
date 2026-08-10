@@ -10,7 +10,8 @@ EXPECTED_PIPELINE = [
     "Generate site",
     "Commit & push",
 ]
-TOKEN_ENV = "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}"
+GITHUB_TOKEN_ENV = "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}"
+DEEPSEEK_TOKEN_ENV = "DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}"
 
 
 def _extract_named_step_blocks(text):
@@ -33,7 +34,15 @@ def _extract_named_step_blocks(text):
 
 def _assert_workflow_contract(test_case, text):
     test_case.assertIn("contents: write", text)
-    test_case.assertIn("models: read", text)
+    test_case.assertNotIn("models: read", text)
+    test_case.assertRegex(
+        text,
+        r"(?ms)^concurrency:\s*\n\s+group:\s*build-blog-publish\s*\n\s+cancel-in-progress:\s*false\s*$",
+    )
+    test_case.assertRegex(text, r"(?m)^\s{6}date:\s*$")
+    test_case.assertRegex(text, r"(?m)^\s{8}type:\s*string\s*$")
+    test_case.assertRegex(text, r"(?m)^\s{6}dry-run:\s*$")
+    test_case.assertRegex(text, r"(?m)^\s{8}type:\s*boolean\s*$")
 
     steps = _extract_named_step_blocks(text)
     test_case.assertEqual(EXPECTED_PIPELINE, [name for name, _ in steps])
@@ -51,49 +60,54 @@ def _assert_workflow_contract(test_case, text):
         test_case.assertIn(fragment, aihot)
 
     radar = blocks["Generate open source radar"]
+    for fragment in (
+        "RADAR_DATE: ${{ inputs.date || '' }}",
+        "RADAR_DRY_RUN: ${{ inputs['dry-run'] || false }}",
+        "args=()",
+        '[[ "$RADAR_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]',
+        'args+=(--date "$RADAR_DATE")',
+        'args+=(--dry-run)',
+    ):
+        test_case.assertIn(fragment, radar)
+    test_case.assertRegex(radar, rf"(?m)^          {re.escape(GITHUB_TOKEN_ENV)}\s*$")
+    test_case.assertRegex(radar, rf"(?m)^          {re.escape(DEEPSEEK_TOKEN_ENV)}\s*$")
     test_case.assertRegex(
         radar,
-        rf"(?m)^        env:\s*\n          {re.escape(TOKEN_ENV)}\s*$",
+        r'(?m)^          python3 src/opensource\.py "\$\{args\[@\]\}"\s*$',
     )
-    test_case.assertRegex(
-        radar,
-        r"(?m)^        run: python3 src/opensource\.py\s*$",
-    )
+    run_block = radar.split("        run: |", 1)[1]
+    test_case.assertNotIn("${{ inputs.", run_block)
     test_case.assertNotRegex(radar, r"(?m)^\s+if\s*:")
     test_case.assertNotRegex(radar, r"(?m)^\s+continue-on-error\s*:")
 
-    tests = blocks["Run tests"]
-    test_case.assertIn("run: python -m unittest discover -s tests -v", tests)
-
-    generator = blocks["Generate site"]
-    test_case.assertIn("run: python3 src/generator.py", generator)
+    test_case.assertEqual(text.count(GITHUB_TOKEN_ENV), 1)
+    test_case.assertEqual(text.count(DEEPSEEK_TOKEN_ENV), 1)
+    test_case.assertIn("run: python -m unittest discover -s tests -v", blocks["Run tests"])
+    test_case.assertIn("run: python3 src/generator.py", blocks["Generate site"])
 
 
 class WorkflowConfigurationTests(unittest.TestCase):
-    def test_workflow_enforces_the_complete_publish_pipeline(self):
+    def test_workflow_enforces_locked_safe_publish_pipeline(self):
         text = Path(".github/workflows/build.yml").read_text(encoding="utf-8")
 
         _assert_workflow_contract(self, text)
 
-    def test_contract_rejects_token_moved_out_of_radar_step(self):
+    def test_contract_rejects_deepseek_secret_moved_out_of_radar_step(self):
         text = Path(".github/workflows/build.yml").read_text(encoding="utf-8")
-        mutated = text.replace(
-            f"          {TOKEN_ENV}\n        run: python3 src/opensource.py",
-            "        run: python3 src/opensource.py",
-        ).replace(
+        mutated = text.replace(f"          {DEEPSEEK_TOKEN_ENV}\n", "").replace(
             "      - name: Run tests\n",
-            f"      - name: Run tests\n        env:\n          {TOKEN_ENV}\n",
+            f"      - name: Run tests\n        env:\n          {DEEPSEEK_TOKEN_ENV}\n",
         )
 
         self.assertNotEqual(text, mutated)
         with self.assertRaises(AssertionError):
             _assert_workflow_contract(self, mutated)
 
-    def test_contract_rejects_commented_radar_token(self):
+    def test_contract_rejects_commented_deepseek_secret(self):
         text = Path(".github/workflows/build.yml").read_text(encoding="utf-8")
         mutated = text.replace(
-            f"          {TOKEN_ENV}\n",
-            f"          # {TOKEN_ENV}\n",
+            f"          {DEEPSEEK_TOKEN_ENV}\n",
+            f"          # {DEEPSEEK_TOKEN_ENV}\n",
         )
 
         self.assertNotEqual(text, mutated)
@@ -103,10 +117,14 @@ class WorkflowConfigurationTests(unittest.TestCase):
     def test_contract_rejects_commented_radar_command(self):
         text = Path(".github/workflows/build.yml").read_text(encoding="utf-8")
         mutated = text.replace(
-            "        run: python3 src/opensource.py\n",
-            "        # run: python3 src/opensource.py\n",
+            '          python3 src/opensource.py "${args[@]}"\n',
+            '          # python3 src/opensource.py "${args[@]}"\n',
         )
 
         self.assertNotEqual(text, mutated)
         with self.assertRaises(AssertionError):
             _assert_workflow_contract(self, mutated)
+
+
+if __name__ == "__main__":
+    unittest.main()

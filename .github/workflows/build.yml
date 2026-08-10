@@ -1,18 +1,32 @@
 name: Build blog
+
 on:
   push:
     branches: [main]
   schedule:
-    # GitHub schedule 常在整点积压 2–3 小时，故用 :20 分并提前覆盖上午窗口。
-    # 目标：北京时间早上约 08:00 前后能更新到当天日报。
-    - cron: '20 22 * * *'   # UTC 22:20 = BJ 06:20（提前跑，延迟后常落在 ~08:00）
-    - cron: '20 0 * * *'    # UTC 00:20 = BJ 08:20
-    - cron: '20 2 * * *'    # UTC 02:20 = BJ 10:20（上午兜底）
-    - cron: '20 10 * * *'   # UTC 10:20 = BJ 18:20（晚间补跑）
+    - cron: '20 22 * * *'
+    - cron: '20 0 * * *'
+    - cron: '20 2 * * *'
+    - cron: '20 10 * * *'
   workflow_dispatch:
+    inputs:
+      date:
+        description: Optional digest date in YYYY-MM-DD format
+        required: false
+        type: string
+      dry-run:
+        description: Validate collection and generation without writing the digest
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: build-blog-publish
+  cancel-in-progress: false
+
 permissions:
   contents: write
-  models: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,7 +42,6 @@ jobs:
           python3 src/aihot.py
           code=$?
           echo "exit_code=$code" >> "$GITHUB_OUTPUT"
-          # 0=今天已写入；2=今天未就绪但已写入最近一期；其它=失败
           if [ "$code" -eq 1 ] || [ "$code" -gt 2 ]; then
             exit "$code"
           fi
@@ -36,7 +49,22 @@ jobs:
       - name: Generate open source radar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 src/opensource.py
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          RADAR_DATE: ${{ inputs.date || '' }}
+          RADAR_DRY_RUN: ${{ inputs['dry-run'] || false }}
+        run: |
+          args=()
+          if [ -n "$RADAR_DATE" ]; then
+            if ! [[ "$RADAR_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+              echo "Invalid radar date; expected YYYY-MM-DD" >&2
+              exit 2
+            fi
+            args+=(--date "$RADAR_DATE")
+          fi
+          if [ "$RADAR_DRY_RUN" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          python3 src/opensource.py "${args[@]}"
       - name: Run tests
         run: python -m unittest discover -s tests -v
       - name: Generate site

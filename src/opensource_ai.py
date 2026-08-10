@@ -1,12 +1,15 @@
-"""Structured GitHub Models analysis for the open-source radar."""
+"""Structured DeepSeek analysis for the open-source radar."""
 import json
+import time
 from typing import Callable
 from urllib.request import Request, urlopen
 
 from opensource_models import ProjectBrief, RepositoryCandidate
 
 
-ENDPOINT = "https://models.github.ai/inference/chat/completions"
+DEFAULT_ENDPOINT = "https://api.deepseek.com/chat/completions"
+DEFAULT_MODEL = "deepseek-v4-flash"
+MAX_RETRY_DELAY = 30.0
 DIFFICULTIES = frozenset({"容易", "中等", "较难"})
 FIELD_LIMITS = {
     "headline": 240,
@@ -23,6 +26,10 @@ FIELD_LIMITS = {
 
 class BriefValidationError(ValueError):
     """Raised when a model response is not a safe, structured project brief."""
+
+
+class ModelTransportError(RuntimeError):
+    """Raised for an expected DeepSeek transport failure."""
 
 
 def validate_brief(data: dict, candidate: RepositoryCandidate) -> ProjectBrief:
@@ -44,18 +51,20 @@ def validate_brief(data: dict, candidate: RepositoryCandidate) -> ProjectBrief:
     return brief
 
 
-class GitHubModelsClient:
-    """Small stdlib-only client for GitHub Models chat completions."""
+class DeepSeekClient:
+    """Small stdlib-only client for DeepSeek chat completions."""
 
     def __init__(
         self,
         token: str,
-        model: str = "openai/gpt-4.1-mini",
+        model: str = DEFAULT_MODEL,
+        endpoint: str = DEFAULT_ENDPOINT,
         timeout: int = 60,
         transport: Callable | None = None,
     ):
         self.token = token
         self.model = model
+        self.endpoint = endpoint
         self.timeout = timeout
         self.transport = transport or urlopen
 
@@ -66,13 +75,14 @@ class GitHubModelsClient:
             "temperature": 0.2,
             "max_tokens": 1200,
             "response_format": {"type": "json_object"},
+            "thinking": {"type": "disabled"},
             "messages": [
                 {"role": "system", "content": _system_prompt()},
                 {"role": "user", "content": _candidate_prompt(candidate, featured)},
             ],
         }
         request = Request(
-            ENDPOINT,
+            self.endpoint,
             data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
             headers={
                 "Authorization": f"Bearer {self.token}",
@@ -82,31 +92,47 @@ class GitHubModelsClient:
             },
             method="POST",
         )
-        response = self.transport(request, timeout=self.timeout)
         try:
-            body = response.read() if hasattr(response, "read") else response
+            response = self.transport(request, timeout=self.timeout)
+        except OSError as error:
+            raise ModelTransportError(f"DeepSeek request failed: {error}") from error
+        try:
+            try:
+                body = response.read() if hasattr(response, "read") else response
+            except OSError as error:
+                raise ModelTransportError(f"DeepSeek response read failed: {error}") from error
         finally:
             close = getattr(response, "close", None)
             if callable(close):
                 close()
-        parsed = json.loads(body.decode("utf-8") if isinstance(body, bytes) else body)
-        result = json.loads(parsed["choices"][0]["message"]["content"])
+        try:
+            parsed = json.loads(body.decode("utf-8") if isinstance(body, bytes) else body)
+            result = json.loads(parsed["choices"][0]["message"]["content"])
+        except (UnicodeDecodeError, json.JSONDecodeError, KeyError, IndexError, TypeError) as error:
+            raise BriefValidationError(f"Invalid DeepSeek response envelope: {error}") from error
         if not isinstance(result, dict):
             raise BriefValidationError("Model content must be a JSON object")
         return result
 
 
 def analyze_candidate(
-    client: GitHubModelsClient, candidate: RepositoryCandidate, featured: bool
+    client: DeepSeekClient,
+    candidate: RepositoryCandidate,
+    featured: bool,
+    *,
+    sleeper: Callable[[float], None] = time.sleep,
+    retry_delay: float = 1.0,
 ) -> ProjectBrief:
     """Generate and validate an AI-written project brief."""
     last_error = None
-    for _ in range(2):
+    for attempt in range(2):
         try:
             return validate_brief(client.complete(candidate, featured), candidate)
-        except (BriefValidationError, KeyError, IndexError, TypeError, ValueError, OSError) as error:
+        except (BriefValidationError, ModelTransportError) as error:
             last_error = error
-    raise BriefValidationError(f"GitHub Models response failed validation: {last_error}") from last_error
+            if attempt == 0:
+                sleeper(min(max(float(retry_delay), 0.0), MAX_RETRY_DELAY))
+    raise BriefValidationError(f"DeepSeek response failed validation: {last_error}") from last_error
 
 
 def _system_prompt() -> str:
@@ -130,6 +156,7 @@ def _candidate_prompt(candidate: RepositoryCandidate, featured: bool) -> str:
         "stars_today": candidate.stars_today,
         "topics": [_clean_text(topic, 100) for topic in candidate.topics],
         "category": _clean_text(candidate.category, 100),
+        "exceptional_repeat_reason": _clean_text(candidate.repeat_reason, 300),
         "featured": featured,
         "readme_excerpt": _clean_text(candidate.readme, 12000),
     }

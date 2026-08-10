@@ -25,7 +25,7 @@ def css_declarations(selector: str) -> str:
     raise AssertionError(f"Missing CSS selector: {selector}")
 
 
-def build_fixture_page() -> str:
+def build_fixture_digest():
     briefs = []
     for index in range(12):
         name = "sample/agent-kit" if index == 0 else f"sample/project-{index + 1}"
@@ -56,7 +56,11 @@ def build_fixture_page() -> str:
                 caveats="Validate it against your workload.",
             )
         )
-    return render_digest(build_digest(briefs, date="2026-08-09"))
+    return build_digest(briefs, date="2026-08-09")
+
+
+def build_fixture_page() -> str:
+    return render_digest(build_fixture_digest())
 
 
 class OpenSourceMarkupTests(unittest.TestCase):
@@ -75,6 +79,38 @@ class OpenSourceMarkupTests(unittest.TestCase):
         self.assertEqual(page.count('target="_blank" rel="noopener noreferrer"'), 12)
         self.assertIn('aria-label="在 GitHub 查看 sample/agent-kit"', page)
         self.assertIn('<span class="difficulty-label">中等</span>', page)
+
+    def test_every_card_shows_escaped_facts_and_quick_cards_explain_the_project(self):
+        digest = build_fixture_digest()
+        digest.generated_at = datetime.datetime(2026, 8, 9, 12, 34)
+        digest.featured[0].candidate.language = "R&D <lang>"
+        digest.featured[0].candidate.license_name = ""
+        digest.quick[0].problem = "Problem <unsafe>"
+        digest.quick[0].approach = "Approach & proof"
+        digest.quick[0].audience = "R&D teams"
+
+        page = render_digest(digest)
+
+        self.assertIn('class="radar-issue-header"', page)
+        self.assertIn("2026-08-09 12:34", page)
+        self.assertIn("12 projects", page)
+        self.assertIn('class="radar-method-note"', page)
+        self.assertEqual(page.count('class="radar-facts"'), 12)
+        self.assertIn("R&amp;D &lt;lang&gt;", page)
+        self.assertIn("未声明", page)
+        self.assertIn("Stars 100", page)
+        self.assertIn("Forks 10", page)
+        self.assertIn("Problem &lt;unsafe&gt;", page)
+        self.assertIn("Approach &amp; proof", page)
+        self.assertIn("R&amp;D teams", page)
+
+    def test_exceptional_repeat_reason_is_visible_on_the_project_card(self):
+        digest = build_fixture_digest()
+        digest.quick[0].candidate.repeat_reason = "Repeated after 1200 stars today."
+
+        page = render_digest(digest)
+
+        self.assertIn("Repeated after 1200 stars today.", page)
 
     def test_clipped_radar_containers_use_internal_focus_indicators(self):
         for selector in (

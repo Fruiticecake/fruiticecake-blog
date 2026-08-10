@@ -3,12 +3,14 @@ import datetime
 import json
 import sys
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from opensource_sources import GitHubClient, collect_candidates, parse_trending
+from opensource_sources import GitHubClient, collect_candidates, enrich_readmes, parse_trending
+from opensource_ranker import select_candidates
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -23,11 +25,14 @@ def load_json(name):
 
 
 class FakeGitHubClient:
-    def __init__(self, trending_error=None, trending_items=None, search_error_on_call=None):
+    def __init__(self, trending_error=None, trending_items=None, search_error_on_call=None, readme_errors=None):
         self.trending_error = trending_error
         self.trending_items = trending_items
         self.search_error_on_call = search_error_on_call
         self.search_calls = []
+        self.repository_calls = []
+        self.readme_calls = []
+        self.readme_errors = set(readme_errors or [])
         self.items = load_json("search.json")["items"]
         self.repository_data = {item["full_name"]: item for item in self.items}
 
@@ -43,9 +48,13 @@ class FakeGitHubClient:
         return self.items[:limit]
 
     def get_repository(self, full_name):
+        self.repository_calls.append(full_name)
         return self.repository_data[full_name]
 
     def get_readme(self, full_name):
+        self.readme_calls.append(full_name)
+        if full_name in self.readme_errors:
+            raise RuntimeError("README unavailable")
         return "README " + ("x" * 18001)
 
 
@@ -61,7 +70,52 @@ class SourceTests(unittest.TestCase):
 
         self.assertGreaterEqual(len(result), 8)
         self.assertTrue(client.search_calls)
-        self.assertEqual(len(result[0].readme), 18000)
+        self.assertTrue(all(not item.readme for item in result))
+        self.assertEqual(client.readme_calls, [])
+
+    def test_collect_ranks_metadata_before_readme_and_enriches_only_twenty_shortlisted_items(self):
+        client = FakeGitHubClient(readme_errors={"sample/5"})
+        metadata = collect_candidates(client, datetime.date(2026, 8, 9))
+        candidates = [replace(metadata[0], full_name=f"sample/{index}") for index in range(25)]
+        original_stars = candidates[5].stars
+
+        enriched = enrich_readmes(client, candidates)
+
+        self.assertEqual(len(client.readme_calls), 20)
+        self.assertEqual(enriched[0].readme, ("README " + ("x" * 18001))[:18000])
+        self.assertEqual(enriched[5].stars, original_stars)
+        self.assertEqual(enriched[5].readme, "")
+        self.assertTrue(all(not item.readme for item in enriched[20:]))
+
+    def test_search_metadata_does_not_trigger_repository_detail_requests(self):
+        client = FakeGitHubClient(trending_items=[])
+
+        collect_candidates(client, datetime.date(2026, 8, 9))
+
+        self.assertEqual(client.repository_calls, [])
+
+    def test_source_metadata_reaches_ranker_with_a_four_category_distribution(self):
+        client = FakeGitHubClient(trending_items=[])
+        fixtures = []
+        for name, topics, description, language in (
+            ("sample/ai", ["llm"], "Model runtime", "Python"),
+            ("sample/devtools", ["linter"], "Code quality", "Rust"),
+            ("sample/platform", ["kubernetes"], "Cluster operator", "Go"),
+            ("sample/other", ["hardware"], "PCB design", "C++"),
+        ):
+            item = load_json("repository.json")
+            item.update(full_name=name, html_url=f"https://github.com/{name}", topics=topics, description=description, language=language)
+            fixtures.append(item)
+        client.items = fixtures
+        client.repository_data = {item["full_name"]: item for item in fixtures}
+
+        ranked = select_candidates(
+            collect_candidates(client, datetime.date(2026, 8, 9)),
+            set(),
+            limit=4,
+        )
+
+        self.assertEqual({item.category for item in ranked}, {"ai", "devtools", "platform", "other"})
 
     def test_collect_candidates_enriches_trending_repository_and_preserves_flags(self):
         client = FakeGitHubClient()

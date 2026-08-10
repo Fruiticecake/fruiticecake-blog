@@ -152,6 +152,18 @@ AI 服务通过环境变量配置，密钥只保存在 GitHub Actions Secrets �
 
 若未配置 AI 密钥，本地构建仍可渲染已经提交的历史日报；只有“生成新日报”任务需要模型服务。
 
+### 5.3 Provider correction after final review
+
+The originally planned GitHub Models dependency was retired before release. New live digests use DeepSeek's official chat-completions contract instead:
+
+- default endpoint: `https://api.deepseek.com/chat/completions` (`DEEPSEEK_ENDPOINT` may override it);
+- default model: `deepseek-v4-flash` (`DEEPSEEK_MODEL` may override it);
+- authentication: `DEEPSEEK_API_KEY` as a bearer token;
+- structured output: `response_format: {"type": "json_object"}`;
+- reasoning mode: `thinking: {"type": "disabled"}`.
+
+`GITHUB_TOKEN` remains isolated to GitHub Trending/Search/repository/README collection and is never reused as model authentication. Live generation fails closed when either required key is missing; the deterministic static build of committed historical digests remains network-free and keyless. No deterministic non-AI brief fallback is allowed because it would silently publish a lower-confidence product under the same editorial contract.
+
 ## 6. 文件与模块边界
 
 在现有 Python 静态站点中新增以下边界：

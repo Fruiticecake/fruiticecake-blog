@@ -98,7 +98,7 @@ def _parse_timestamp(value: str | None) -> datetime.datetime:
     return datetime.datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
 
 
-def _candidate(data: dict, trend: dict | None, readme: str) -> RepositoryCandidate:
+def _candidate(data: dict, trend: dict | None, readme: str = "") -> RepositoryCandidate:
     license_data = data.get("license") or {}
     candidate = RepositoryCandidate(
         full_name=data["full_name"],
@@ -121,7 +121,7 @@ def _candidate(data: dict, trend: dict | None, readme: str) -> RepositoryCandida
 
 
 def collect_candidates(client: GitHubClient, date: datetime.date) -> list[RepositoryCandidate]:
-    """Collect and enrich deterministic GitHub search candidates, with Trending optional."""
+    """Collect repository metadata candidates, with Trending optional."""
     try:
         trending = {item["full_name"].lower(): item for item in client.fetch_trending()}
     except Exception as error:
@@ -146,11 +146,26 @@ def collect_candidates(client: GitHubClient, date: datetime.date) -> list[Reposi
 
     candidates = []
     for key, search_item in repositories.items():
+        repository = search_item
+        if not search_item.get("html_url"):
+            try:
+                repository = client.get_repository(search_item["full_name"])
+            except Exception as error:
+                LOGGER.warning("Could not fetch metadata for %s: %s", search_item["full_name"], error)
+        candidates.append(_candidate(repository, trending.get(key)))
+    return candidates
+
+
+def enrich_readmes(
+    client: GitHubClient,
+    candidates: list[RepositoryCandidate],
+    limit: int = 20,
+) -> list[RepositoryCandidate]:
+    """Fetch bounded README text only for ranked shortlist candidates."""
+    for candidate in candidates[: max(0, limit)]:
         try:
-            repository = client.get_repository(search_item["full_name"])
-            readme = client.get_readme(search_item["full_name"])
+            candidate.readme = client.get_readme(candidate.full_name)[:README_LIMIT]
         except Exception as error:
-            LOGGER.warning("Could not enrich %s: %s", search_item["full_name"], error)
-            repository, readme = search_item, ""
-        candidates.append(_candidate(repository, trending.get(key), readme))
+            LOGGER.warning("Could not fetch README for %s: %s", candidate.full_name, error)
+            candidate.readme = ""
     return candidates

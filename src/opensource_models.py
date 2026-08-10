@@ -20,6 +20,7 @@ class RepositoryCandidate:
     readme: str = ""
     category: str = "other"
     score: float = 0.0
+    repeat_reason: str = ""
 
 
 @dataclass

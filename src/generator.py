@@ -216,6 +216,13 @@ def render_docs_section(sec):
     return f'<div class="docs-index">{rows}</div>' if rows else '<p class="empty-note">暂无内容。</p>'
 
 
+def _opensource_history_summary(post, limit=120):
+    summary = " ".join(str(post.meta.get("trend_1") or post.summary or "").split())
+    if len(summary) <= limit:
+        return summary
+    return summary[: limit - 1].rstrip() + "…"
+
+
 def render_opensource_section(sec):
     if not sec.posts:
         return '<p class="empty-note">暂无内容。</p>'
@@ -234,7 +241,7 @@ def render_opensource_section(sec):
     history_html = "".join(
         f'<a class="aihot-list-row" href="{post.url}">'
         f'<div><div class="aihot-list-date">{post.date_human}</div>'
-        f'<div class="aihot-list-headline">{util.html_escape(post.title)}</div></div>'
+        f'<div class="aihot-list-headline">{util.html_escape(_opensource_history_summary(post))}</div></div>'
         f'<span class="aihot-list-count">查看日报 →</span></a>'
         for post in history)
     return (

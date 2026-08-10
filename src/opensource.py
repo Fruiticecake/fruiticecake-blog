@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import html
 import json
+import logging
 import os
 import re
 import sys
@@ -12,18 +12,27 @@ import tempfile
 from pathlib import Path
 from typing import Iterable
 
-from opensource_ai import GitHubModelsClient, analyze_candidate
+from opensource_ai import (
+    DEFAULT_ENDPOINT,
+    DEFAULT_MODEL,
+    BriefValidationError,
+    DeepSeekClient,
+    ModelTransportError,
+    analyze_candidate,
+)
 from opensource_models import DailyDigest, ProjectBrief, RepositoryCandidate
 from opensource_ranker import select_candidates
 from opensource_render import render_digest
-from opensource_sources import GitHubClient, collect_candidates
+from opensource_sources import GitHubClient, collect_candidates, enrich_readmes
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONTENT_DIR = ROOT / "content" / "opensource"
 MAX_PROJECTS = 12
 MIN_PROJECTS = 8
+MAX_ANALYSIS_CANDIDATES = 20
 BEIJING = datetime.timezone(datetime.timedelta(hours=8), name="UTC+08:00")
+LOGGER = logging.getLogger(__name__)
 
 
 class IncompleteDigestError(ValueError):
@@ -31,7 +40,10 @@ class IncompleteDigestError(ValueError):
 
 
 def build_digest(
-    briefs: list[ProjectBrief], date: datetime.date | str, trends: list[str] | None = None
+    briefs: list[ProjectBrief],
+    date: datetime.date | str,
+    trends: list[str] | None = None,
+    generated_at: datetime.datetime | None = None,
 ) -> DailyDigest:
     """Partition ranked briefs into featured and quick entries for one date."""
     normalized_date = _normalize_date(date)
@@ -41,7 +53,7 @@ def build_digest(
     resolved_trends = _resolve_trends(selected, trends)
     return DailyDigest(
         date=normalized_date,
-        generated_at=datetime.datetime.combine(normalized_date, datetime.time.min),
+        generated_at=generated_at or datetime.datetime.combine(normalized_date, datetime.time.min),
         trends=resolved_trends,
         featured=selected[:3],
         quick=selected[3:],
@@ -55,9 +67,9 @@ def digest_markdown(digest: DailyDigest) -> str:
         "date": digest.date.isoformat(),
         "html": True,
         "section": "opensource",
-        "trend_1": html.escape(digest.trends[0], quote=True),
-        "trend_2": html.escape(digest.trends[1], quote=True),
-        "trend_3": html.escape(digest.trends[2], quote=True),
+        "trend_1": digest.trends[0],
+        "trend_2": digest.trends[1],
+        "trend_3": digest.trends[2],
         "project_count": len(digest.featured) + len(digest.quick),
     }
     lines = ["---"]
@@ -155,14 +167,43 @@ def load_fixture(path: Path) -> list[ProjectBrief]:
 
 
 def collect_live_briefs(date: datetime.date, content_dir: Path) -> list[ProjectBrief]:
-    token = os.environ.get("GITHUB_TOKEN")
-    if not token:
+    github_token = os.environ.get("GITHUB_TOKEN")
+    deepseek_key = os.environ.get("DEEPSEEK_API_KEY")
+    if not github_token:
         raise RuntimeError("GITHUB_TOKEN is required for live open-source radar runs")
-    candidates = collect_candidates(GitHubClient(token), date)
-    ranked = select_candidates(candidates, recent_seen_names(content_dir, date), limit=MAX_PROJECTS)
+    if not deepseek_key:
+        raise RuntimeError("DEEPSEEK_API_KEY is required for live open-source radar runs")
+    github_client = GitHubClient(github_token)
+    candidates = collect_candidates(github_client, date)
+    ranked = select_candidates(
+        candidates,
+        recent_seen_names(content_dir, date),
+        limit=MAX_ANALYSIS_CANDIDATES,
+    )
     if len(ranked) < MIN_PROJECTS:
         raise IncompleteDigestError(f"Need at least {MIN_PROJECTS} ranked candidates; got {len(ranked)}")
-    return [analyze_candidate(GitHubModelsClient(token), candidate, index < 3) for index, candidate in enumerate(ranked)]
+    enrich_readmes(github_client, ranked, limit=MAX_ANALYSIS_CANDIDATES)
+    model_client = DeepSeekClient(
+        deepseek_key,
+        endpoint=os.environ.get("DEEPSEEK_ENDPOINT") or DEFAULT_ENDPOINT,
+        model=os.environ.get("DEEPSEEK_MODEL") or DEFAULT_MODEL,
+    )
+    briefs: list[ProjectBrief] = []
+    for candidate in ranked[:MAX_ANALYSIS_CANDIDATES]:
+        try:
+            briefs.append(
+                analyze_candidate(model_client, candidate, featured=len(briefs) < 3)
+            )
+        except (BriefValidationError, ModelTransportError) as error:
+            LOGGER.warning("Could not analyze %s: %s", candidate.full_name, error)
+            continue
+        if len(briefs) == MAX_PROJECTS:
+            break
+    if len(briefs) < MIN_PROJECTS:
+        raise IncompleteDigestError(
+            f"Need at least {MIN_PROJECTS} valid project briefs; got {len(briefs)}"
+        )
+    return briefs
 
 
 def _target_path(content_dir: Path, date: datetime.date) -> Path:
@@ -241,7 +282,11 @@ def main(argv: Iterable[str] | None = None) -> int:
     args = parser.parse_args(argv)
     content_dir = DEFAULT_CONTENT_DIR
     target = _target_path(content_dir, args.date)
-    existing_metadata = _existing_digest_metadata(target, args.date) if target.exists() else None
+    existing_metadata = (
+        _existing_digest_metadata(target, args.date)
+        if target.exists() and not args.force
+        else None
+    )
     if existing_metadata is not None and not args.force:
         project_count, trend_count = existing_metadata
         if args.dry_run:
@@ -250,7 +295,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             print(f"Open-source digest already exists: {target} ({project_count} projects, {trend_count} trends)")
         return 0
     briefs = load_fixture(args.fixture) if args.fixture else collect_live_briefs(args.date, content_dir)
-    digest = build_digest(briefs, args.date)
+    digest = build_digest(briefs, args.date, generated_at=datetime.datetime.now(BEIJING))
     project_count = len(digest.featured) + len(digest.quick)
     if args.dry_run:
         print(f"Dry run: {target} ({project_count} projects, {len(digest.trends)} trends)")

@@ -1,3 +1,5 @@
+import datetime
+import html
 import sys
 import tempfile
 import unittest
@@ -9,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import generator
 import opensource
+from models import Post
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +26,25 @@ FIXTURE_MARKERS = (
 
 
 class OpenSourceGeneratorTests(unittest.TestCase):
+    def test_history_rows_use_bounded_single_escaped_trend_summaries(self):
+        latest = Post(
+            slug="2026-08-10", section="opensource", title="Latest title",
+            date=datetime.datetime(2026, 8, 10), meta={"trend_1": "Latest trend"},
+        )
+        historical = Post(
+            slug="2026-08-09", section="opensource", title="Repeated issue title",
+            date=datetime.datetime(2026, 8, 9), meta={"trend_1": "R&D <tools> " + ("x" * 200)},
+        )
+        section = type("Section", (), {"posts": [latest, historical]})()
+
+        page = generator.render_opensource_section(section)
+
+        self.assertNotIn("Repeated issue title", page)
+        self.assertIn("R&amp;D &lt;tools&gt;", page)
+        self.assertNotIn("R&amp;amp;D", page)
+        headline = page.split('class="aihot-list-headline">', 1)[1].split("</div>", 1)[0]
+        self.assertLessEqual(len(html.unescape(headline)), 120)
+
     def test_build_contains_open_source_radar_routes_and_copy(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

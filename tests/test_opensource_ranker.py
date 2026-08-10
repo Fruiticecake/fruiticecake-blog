@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from opensource_models import RepositoryCandidate
-from opensource_ranker import select_candidates
+from opensource_ranker import infer_category, select_candidates
 
 
 NOW = datetime.datetime(2026, 8, 9, 12, 0, 0)
@@ -22,19 +22,29 @@ def candidate(
     category="ai",
     forks=10,
     archived=False,
+    description=None,
+    language="Python",
+    stars_today=None,
 ):
+    default_topics = {
+        "ai": ["ai"],
+        "devtools": ["developer-tools"],
+        "platform": ["cloud-native"],
+        "other": ["hardware"],
+    }
     result = RepositoryCandidate(
         full_name=full_name,
         html_url=f"https://github.com/{full_name}",
-        description="A useful project.",
-        language="Python",
+        description=description or "A useful project.",
+        language=language,
         license_name="MIT",
         stars=stars,
         forks=forks,
-        topics=topics or [],
+        topics=default_topics[category] if topics is None else topics,
         created_at=NOW - datetime.timedelta(days=60),
         pushed_at=NOW - datetime.timedelta(days=pushed_days_ago),
         trending_rank=trending_rank,
+        stars_today=stars_today,
         category=category,
     )
     result.archived = archived
@@ -54,6 +64,39 @@ def make_category_fixture():
 
 
 class SelectCandidatesTests(unittest.TestCase):
+    def test_seen_repository_is_excluded_unless_daily_growth_is_exceptional(self):
+        ordinary = candidate("org/ordinary-repeat", stars_today=999)
+        exceptional = candidate("org/exceptional-repeat", stars_today=1000)
+
+        selected = select_candidates(
+            [ordinary, exceptional],
+            {"org/ordinary-repeat", "org/exceptional-repeat"},
+            limit=2,
+        )
+
+        self.assertEqual([item.full_name for item in selected], ["org/exceptional-repeat"])
+        self.assertIn("1000", selected[0].repeat_reason)
+
+    def test_category_is_inferred_from_normalized_topics_description_and_language(self):
+        cases = (
+            (candidate(topics=["Large_Language_Model"]), "ai"),
+            (candidate(topics=[], description="A command-line linter for CI", category="other"), "devtools"),
+            (candidate(topics=[], description="Kubernetes ingress controller", category="other"), "platform"),
+            (candidate(topics=[], description="A PCB design suite", language="C++", category="other"), "other"),
+        )
+
+        self.assertEqual([infer_category(item) for item, _ in cases], [want for _, want in cases])
+
+    def test_category_inference_uses_language_when_other_metadata_is_empty(self):
+        self.assertEqual(
+            infer_category(candidate(topics=[], description="", language="Shell", category="other")),
+            "devtools",
+        )
+        self.assertEqual(
+            infer_category(candidate(topics=[], description="", language="HCL", category="other")),
+            "platform",
+        )
+
     def test_recent_ai_project_outranks_stale_duplicate(self):
         fresh = candidate("org/fresh-agent", topics=["ai", "agent"], stars=900, trending_rank=2)
         stale = candidate("org/old", stars=50000, trending_rank=None, pushed_days_ago=120)
@@ -98,7 +141,7 @@ class SelectCandidatesTests(unittest.TestCase):
             {"ai": 7, "devtools": 5, "platform": 5, "other": 3},
         )
 
-    def test_category_shortfall_is_backfilled_by_highest_ranked_candidates(self):
+    def test_category_shortfall_backfills_only_to_the_safe_minimum(self):
         candidates = [
             candidate(f"org/ai-{index}", category="ai", trending_rank=index + 1)
             for index in range(20)
@@ -106,7 +149,7 @@ class SelectCandidatesTests(unittest.TestCase):
 
         selected = select_candidates(candidates, set())
 
-        self.assertEqual(len(selected), 20)
+        self.assertEqual(len(selected), 8)
         self.assertEqual({item.category for item in selected}, {"ai"})
 
     def test_same_input_has_the_same_order_on_repeated_calls(self):

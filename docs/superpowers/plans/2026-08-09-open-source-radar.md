@@ -4,9 +4,11 @@
 
 **Goal:** Add a daily “开源雷达” section that discovers trending GitHub repositories, produces structured Chinese project briefs, publishes them through the existing static blog, and is verified locally and on Vercel.
 
-**Architecture:** A standard-library Python pipeline collects GitHub candidates, ranks them deterministically, calls GitHub Models for structured analysis, validates the result, and writes a versioned Markdown digest under `content/opensource/`. The existing generator renders the committed digest without network or secrets; GitHub Actions owns collection and generation, and Vercel continues to perform a deterministic static build.
+**Architecture:** A standard-library Python pipeline collects GitHub candidates, ranks them deterministically, calls DeepSeek for structured analysis, validates the result, and writes a versioned Markdown digest under `content/opensource/`. The existing generator renders the committed digest without network or secrets; GitHub Actions owns collection and generation, and Vercel continues to perform a deterministic static build.
 
-**Tech Stack:** Python 3.11 standard library, `unittest`, GitHub REST API, GitHub Models chat-completions API, existing HTML/CSS static generator, GitHub Actions, Vercel, browser-based E2E verification.
+**Tech Stack:** Python 3.11 standard library, `unittest`, GitHub REST API, DeepSeek chat-completions API, existing HTML/CSS static generator, GitHub Actions, Vercel, browser-based E2E verification.
+
+**Provider correction (final review):** The original GitHub Models integration was retired before release. Live generation now uses `DEEPSEEK_API_KEY` with `DEEPSEEK_ENDPOINT` defaulting to `https://api.deepseek.com/chat/completions` and `DEEPSEEK_MODEL` defaulting to `deepseek-v4-flash`. Requests use JSON-object mode with thinking disabled. `GITHUB_TOKEN` is used only for GitHub repository data. A live run without either required key fails closed; committed historical digests remain renderable by the static generator without any key.
 
 ## Global Constraints
 
@@ -15,7 +17,7 @@
 - Category weighting targets AI/Agent 35%, developer tools 25%, frontend/backend/infrastructure 25%, other emerging technology 15%.
 - No database, runtime backend, login, collection, personalization, email subscription, or separate domain in v1.
 - Vercel build stays network-free and uses only committed content; only GitHub Actions may call GitHub or model APIs.
-- The workflow uses the job `GITHUB_TOKEN` with `contents: write` and `models: read`; no model secret is committed.
+- The workflow passes `GITHUB_TOKEN` and the `DEEPSEEK_API_KEY` secret only to the radar step, grants only `contents: write`, and commits no secret.
 - An incomplete digest with fewer than eight valid projects is never committed.
 - Existing untracked files are user-owned and must not be modified, removed, or included in feature commits.
 - Desktop 1440px and mobile 375px layouts must have no horizontal overflow and all repository links must be keyboard reachable.
@@ -187,8 +189,8 @@ git commit -m "feat: collect GitHub project candidates"
 **Interfaces:**
 - Consumes: `RepositoryCandidate` and produces `ProjectBrief` from Task 1.
 - Produces: `validate_brief(data: dict, candidate: RepositoryCandidate) -> ProjectBrief`.
-- Produces: `GitHubModelsClient(token: str, model: str = "openai/gpt-4.1-mini", timeout: int = 60)`.
-- Produces: `analyze_candidate(client: GitHubModelsClient, candidate: RepositoryCandidate, featured: bool) -> ProjectBrief`.
+- Produces: `DeepSeekClient(token: str, model: str = "deepseek-v4-flash", endpoint: str = "https://api.deepseek.com/chat/completions", timeout: int = 60)`.
+- Produces: `analyze_candidate(client: DeepSeekClient, candidate: RepositoryCandidate, featured: bool, *, sleeper, retry_delay) -> ProjectBrief`.
 
 - [ ] **Step 1: Add strict validation tests**
 
@@ -211,9 +213,9 @@ Run: `python -m unittest tests.test_opensource_ai -v`
 
 Expected: import failure for `opensource_ai`.
 
-- [ ] **Step 3: Implement GitHub Models request and validation**
+- [ ] **Step 3: Implement DeepSeek request and validation**
 
-POST to `https://models.github.ai/inference/chat/completions` with `response_format: {"type": "json_object"}`, temperature `0.2`, maximum output `1200`, and a system prompt that prohibits unsupported claims. Parse `choices[0].message.content`, reject unexpected enums and fields over their limits, and retry one time on transport or schema failure.
+POST to `https://api.deepseek.com/chat/completions` with model `deepseek-v4-flash`, `response_format: {"type": "json_object"}`, `thinking: {"type": "disabled"}`, temperature `0.2`, maximum output `1200`, and a system prompt that prohibits unsupported claims. Parse `choices[0].message.content`, reject unexpected enums and fields over their limits, and retry one time on expected transport or schema failure with bounded injectable delay.
 
 - [ ] **Step 4: Run AI tests**
 
@@ -410,27 +412,28 @@ git commit -m "style: design open source radar experience"
 
 **Interfaces:**
 - Consumes: `python src/opensource.py` from Task 4.
-- Produces: a daily and manually dispatchable generation job with `models: read` and `contents: write`.
+- Produces: a daily and manually dispatchable generation job with a workflow concurrency lock, `contents: write`, and the DeepSeek secret scoped to the radar step.
 
 - [ ] **Step 1: Add workflow configuration test**
 
 ```python
-def test_workflow_grants_models_permission_and_runs_radar_before_build():
+def test_workflow_scopes_deepseek_secret_and_runs_radar_before_build():
     text = Path(".github/workflows/build.yml").read_text(encoding="utf-8")
-    assert "models: read" in text
+    assert "models: read" not in text
     assert text.index("python3 src/opensource.py") < text.index("python3 src/generator.py")
     assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in text
+    assert "DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}" in text
 ```
 
 - [ ] **Step 2: Verify workflow test fails**
 
 Run: `python -m unittest tests.test_workflow_config -v`
 
-Expected: missing `models: read` and radar command.
+Expected: missing DeepSeek secret, concurrency lock, safe manual-input mapping, and radar command.
 
 - [ ] **Step 3: Update workflow permissions and steps**
 
-Add `models: read`, pass `GITHUB_TOKEN` through the environment, run the radar generator before the static generator, then run `python -m unittest discover -s tests -v`. Preserve the existing AI HOT retry semantics and commit only after radar generation, all tests, and static build succeed.
+Pass `GITHUB_TOKEN` and `DEEPSEEK_API_KEY` only through the radar step environment, map validated `date` and `dry-run` inputs through shell arrays, add one non-cancelling workflow concurrency group, run the radar generator before the static generator, then run `python -m unittest discover -s tests -v`. Preserve the existing AI HOT retry semantics and commit only after radar generation, all tests, and static build succeed.
 
 - [ ] **Step 4: Run full local verification**
 

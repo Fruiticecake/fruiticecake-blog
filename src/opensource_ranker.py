@@ -1,11 +1,52 @@
 """Deterministic scoring and selection for open-source radar candidates."""
 import datetime
 import math
+import re
 
 from opensource_models import RepositoryCandidate
 
 
 CATEGORY_WEIGHTS = {"ai": 0.35, "devtools": 0.25, "platform": 0.25, "other": 0.15}
+EXCEPTIONAL_REPEAT_STARS = 1000
+SAFE_MINIMUM = 8
+
+CATEGORY_TERMS = {
+    "ai": {
+        "ai", "agent", "agents", "artificial intelligence", "deep learning",
+        "embedding", "generative ai", "large language model", "llm",
+        "machine learning", "model", "neural", "rag", "transformer",
+    },
+    "devtools": {
+        "build tool", "ci", "cli", "code generator", "compiler", "debugger",
+        "developer tool", "developer tools", "formatter", "ide", "linter",
+        "package manager", "sdk", "shell", "testing", "workflow",
+    },
+    "platform": {
+        "api", "backend", "cloud", "cloud native", "container", "database",
+        "docker", "frontend", "infrastructure", "kubernetes", "observability",
+        "hcl", "platform", "serverless", "service mesh", "terraform",
+    },
+}
+
+
+def _normalized_text(candidate: RepositoryCandidate) -> str:
+    values = [*candidate.topics, candidate.description, candidate.language]
+    return " ".join(
+        re.sub(r"[^a-z0-9+#.]+", " ", str(value).casefold()).strip()
+        for value in values
+        if value
+    )
+
+
+def infer_category(candidate: RepositoryCandidate) -> str:
+    """Infer a stable category from normalized repository facts."""
+    normalized = f" {_normalized_text(candidate)} "
+    for category in ("ai", "devtools", "platform"):
+        for term in CATEGORY_TERMS[category]:
+            normalized_term = re.sub(r"[^a-z0-9+#.]+", " ", term).strip()
+            if f" {normalized_term} " in normalized:
+                return category
+    return "other"
 
 
 def score_candidate(
@@ -27,11 +68,20 @@ def select_candidates(
     candidates: list[RepositoryCandidate], seen: set[str], limit: int = 20
 ) -> list[RepositoryCandidate]:
     """Return eligible, de-duplicated candidates in a stable ranked order."""
+    seen_names = {name.lower() for name in seen}
     unique: dict[str, RepositoryCandidate] = {}
     for candidate in candidates:
         key = candidate.full_name.lower()
         if key in unique or getattr(candidate, "archived", False) or getattr(candidate, "is_fork", False):
             continue
+        if key in seen_names:
+            if (candidate.stars_today or 0) < EXCEPTIONAL_REPEAT_STARS:
+                continue
+            candidate.repeat_reason = (
+                "Previously featured within 7 days; repeated because recent growth reached "
+                f"{candidate.stars_today} stars today."
+            )
+        candidate.category = infer_category(candidate)
         unique[key] = candidate
 
     if not unique or limit <= 0:
@@ -55,8 +105,9 @@ def select_candidates(
                 selected.append(candidate)
                 selected_names.add(candidate.full_name.lower())
 
+    backfill_limit = min(target_limit, SAFE_MINIMUM)
     for candidate in ordered:
-        if len(selected) == target_limit:
+        if len(selected) >= backfill_limit:
             break
         if candidate.full_name.lower() not in selected_names:
             selected.append(candidate)
