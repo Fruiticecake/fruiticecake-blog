@@ -247,7 +247,7 @@ _DOMAIN_PATTERN = re.compile(
     re.I,
 )
 _ACTION_PATTERN = re.compile(
-    r"\b(?:run|download|install|execute|invoke|open|visit|click|copy|paste)\b"
+    r"\b(?:run|download|install|execute|invoke|visit|click|copy|paste)\b|\bopen\b(?!-)"
     r"|运行|下载|安装|执行|调用|打开|访问|点击|复制|粘贴",
     re.I,
 )
@@ -272,21 +272,39 @@ _MARKDOWN_PATTERN = re.compile(
 def _contains_unsafe_model_text(value: str) -> bool:
     if any(unicodedata.category(character) in {"Cc", "Cf"} for character in value):
         return True
-    normalized = unicodedata.normalize("NFKC", value).casefold()
-    probe = re.sub(r"\[\s*(?:\.|dot)\s*\]|\(\s*(?:\.|dot)\s*\)", ".", normalized)
-    probe = re.sub(r"\s*[.\u3002\uff61\ufe52]\s*", ".", probe)
-    probe = re.sub(r"\s+(?:dot|点)\s+", ".", probe)
-    probe = re.sub(r"\s+(?:slash|斜杠)\s+", "/", probe)
-    probe = re.sub(r"\s+(?:backslash|反斜杠)\s+", r"\\", probe)
+    normalized = unicodedata.normalize("NFKC", value)
+    folded = normalized.casefold()
+    probe = re.sub(
+        r"\[\s*(?:[.\u3002\uff61\ufe52]|dot)\s*\]|\(\s*(?:[.\u3002\uff61\ufe52]|dot)\s*\)",
+        ".",
+        normalized,
+        flags=re.I,
+    )
+
+    def compact_domain_dot(match):
+        next_character = match.string[match.end()]
+        if match.group("after") and next_character.isupper():
+            return match.group(0)
+        return "."
+
+    probe = re.sub(
+        r"(?<=[a-z0-9-])(?P<before>\s*)[.\u3002\uff61\ufe52](?P<after>\s*)(?=[a-z0-9-])",
+        compact_domain_dot,
+        probe,
+        flags=re.I,
+    )
+    probe = re.sub(r"\s+(?:dot|点)\s+", ".", probe, flags=re.I)
+    probe = re.sub(r"\s+(?:slash|斜杠)\s+", "/", probe, flags=re.I)
+    probe = re.sub(r"\s+(?:backslash|反斜杠)\s+", r"\\", probe, flags=re.I)
     if _DOMAIN_PATTERN.search(probe) or "/" in probe or "\\" in probe:
         return True
-    if _MARKDOWN_PATTERN.search(normalized):
+    if _MARKDOWN_PATTERN.search(folded):
         return True
-    if re.search(r"[|;$<>]|&&|\$\(|#!", normalized):
+    if re.search(r"[|;$<>]|&&|\$\(|#!", folded):
         return True
-    if re.search(r"(?<![a-z])&(?![a-z])", normalized):
+    if re.search(r"(?<![a-z])&(?![a-z])", folded):
         return True
     return any(
-        pattern.search(normalized)
+        pattern.search(folded)
         for pattern in (_ACTION_PATTERN, _PRIVILEGE_PATTERN, _SCRIPT_PATTERN)
     )

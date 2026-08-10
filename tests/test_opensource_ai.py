@@ -178,6 +178,31 @@ class OpenSourceAiTests(unittest.TestCase):
         self.assertEqual(brief.headline, "A practical toolkit for building dependable AI agents.")
         self.assertEqual(brief.why_trending, "GitHub Trending rank #2; 842 stars today.")
 
+    def test_live_smoke_normal_response_with_sentence_boundaries_is_publishable(self):
+        data = {
+            "headline": "A metadata-based assessment of an emerging open-source project.",
+            "problem": "Teams need concise context when repository documentation is limited.",
+            "approach": "The assessment uses repository metadata and recent activity signals.",
+            "why_trending": "This model field is replaced by deterministic evidence.",
+            "audience": "Developers evaluating projects with limited documentation.",
+            "difficulty": "中等",
+            "differentiator": "The available metadata supports a cautious initial assessment.",
+            "quick_start": "This model field is replaced by deterministic guidance.",
+            "caveats": "Limited information: no description, readme excerpt, or language details were provided. The assessment is based solely on repository metadata.",
+        }
+
+        transport = FakeTransport([completion(data)])
+        brief = analyze_candidate(
+            DeepSeekClient("fake-key", transport=transport),
+            sample_candidate(),
+            featured=False,
+            sleeper=lambda delay: None,
+        )
+
+        self.assertEqual(brief.caveats, data["caveats"])
+        self.assertEqual(brief.headline, data["headline"])
+        self.assertEqual(len(transport.requests), 1)
+
     def test_validation_preserves_ordinary_chinese_and_technical_prose(self):
         data = load_json("model_response.json")
         data["approach"] = "该项目提供 PowerShell 模块，用于管理 Windows 自动化任务。"
