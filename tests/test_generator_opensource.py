@@ -75,9 +75,22 @@ class OpenSourceGeneratorTests(unittest.TestCase):
     def test_production_build_excludes_fixture_repositories(self):
         with tempfile.TemporaryDirectory() as directory:
             public = Path(directory) / "public"
+            radar_public = public / "opensource"
+            radar_public.mkdir(parents=True)
+            stale_page = radar_public / "2026-08-09.html"
+            stale_page.write_text("https://github.com/sample/stale", encoding="utf-8")
+            unrelated_asset = radar_public / "radar-mark.svg"
+            unrelated_asset.write_text("<svg><!-- keep --></svg>", encoding="utf-8")
+
             with patch.object(generator, "PUBLIC", str(public)):
                 generator.main()
 
+            self.assertFalse(stale_page.exists())
+            self.assertTrue((radar_public / "index.html").is_file())
+            self.assertEqual(
+                unrelated_asset.read_text(encoding="utf-8"),
+                "<svg><!-- keep --></svg>",
+            )
             for path in public.rglob("*"):
                 if path.is_file():
                     self.assertFalse(

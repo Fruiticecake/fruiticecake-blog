@@ -432,11 +432,27 @@ def write_file(path, content):
     open(path, "w", encoding="utf-8").write(content)
 
 
+def reconcile_opensource_pages(posts):
+    """Remove stale generated digest pages without touching section assets."""
+    section_dir = os.path.join(PUBLIC, "opensource")
+    if not os.path.isdir(section_dir):
+        return
+    expected_pages = {post.slug + ".html" for post in posts}
+    for filename in os.listdir(section_dir):
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}\.html", filename):
+            continue
+        path = os.path.join(section_dir, filename)
+        if filename not in expected_pages and os.path.isfile(path):
+            os.remove(path)
+
+
 def main():
     cfg = load_config()
     sections, all_posts = load_posts(cfg)
     write_file(os.path.join(PUBLIC, "index.html"), build_home(cfg, sections, all_posts))
     for sd in cfg["sections"]:
+        if sd["slug"] == "opensource":
+            reconcile_opensource_pages(sections[sd["slug"]].posts)
         write_file(os.path.join(PUBLIC, sd["slug"], "index.html"),
                    build_section(cfg, sections, sd))
         for p in sections[sd["slug"]].posts:

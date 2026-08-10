@@ -105,7 +105,7 @@ Automated gates now assert:
 2. A generator build from production content into a fresh temporary `public/` tree excludes `sample/`.
 3. The fixture integration build remains entirely inside temporary content and public directories.
 
-The ignored stale harness artifact `public/opensource/2026-08-09.html` was removed before the normal production rebuild because the static generator does not clean old output files. Final production commands and results:
+The production generator now reconciles managed Open Source Radar detail pages before writing the section. It removes only obsolete `public/opensource/YYYY-MM-DD.html` files that have no current content post, while preserving `index.html`, current generated dates, and unrelated assets. The regression test seeds a stale `2026-08-09.html` containing `sample/` plus an unrelated SVG, then proves the normal production build removes the stale page and preserves the SVG. Final production commands and results:
 
 ```text
 python src/generator.py
