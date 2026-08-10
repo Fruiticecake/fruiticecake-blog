@@ -278,7 +278,12 @@ _MARKDOWN_PATTERN = re.compile(
 def _contains_unsafe_model_text(value: str) -> bool:
     if any(unicodedata.category(character) in {"Cc", "Cf"} for character in value):
         return True
-    normalized = unquote(unicodedata.normalize("NFKC", value))
+    normalized = unicodedata.normalize("NFKC", value)
+    for _ in range(3):
+        decoded = unquote(normalized)
+        if decoded == normalized:
+            break
+        normalized = decoded
     folded = normalized.casefold()
     probe = re.sub(
         r"\[\s*(?:[.\u3002\uff61\ufe52]|dot)\s*\]|\(\s*(?:[.\u3002\uff61\ufe52]|dot)\s*\)",
