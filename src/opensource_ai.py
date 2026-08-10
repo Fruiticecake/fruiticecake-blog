@@ -5,6 +5,7 @@ import time
 import unicodedata
 from typing import Callable
 from urllib.error import HTTPError
+from urllib.parse import unquote
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from opensource_models import ProjectBrief, RepositoryCandidate
@@ -246,6 +247,11 @@ _DOMAIN_PATTERN = re.compile(
     r"|\b(?:\d{1,3}\.){3}\d{1,3}\b|\blocalhost\b",
     re.I,
 )
+_SPACED_DOMAIN_PATTERN = re.compile(
+    r"\b[a-z0-9](?:[a-z0-9-]{0,62})?\s*\.\s*"
+    r"(?:com|net|org|io|dev|ai|app|co|cn|xyz|invalid|localhost|example)\b",
+    re.I,
+)
 _ACTION_PATTERN = re.compile(
     r"\b(?:run|download|install|execute|invoke|visit|click|copy|paste)\b|\bopen\b(?!-)"
     r"|运行|下载|安装|执行|调用|打开|访问|点击|复制|粘贴",
@@ -272,7 +278,7 @@ _MARKDOWN_PATTERN = re.compile(
 def _contains_unsafe_model_text(value: str) -> bool:
     if any(unicodedata.category(character) in {"Cc", "Cf"} for character in value):
         return True
-    normalized = unicodedata.normalize("NFKC", value)
+    normalized = unquote(unicodedata.normalize("NFKC", value))
     folded = normalized.casefold()
     probe = re.sub(
         r"\[\s*(?:[.\u3002\uff61\ufe52]|dot)\s*\]|\(\s*(?:[.\u3002\uff61\ufe52]|dot)\s*\)",
@@ -281,26 +287,23 @@ def _contains_unsafe_model_text(value: str) -> bool:
         flags=re.I,
     )
 
-    def compact_domain_dot(match):
-        next_character = match.string[match.end()]
-        if match.group("after") and next_character.isupper():
-            return match.group(0)
-        return "."
-
-    probe = re.sub(
-        r"(?<=[a-z0-9-])(?P<before>\s*)[.\u3002\uff61\ufe52](?P<after>\s*)(?=[a-z0-9-])",
-        compact_domain_dot,
-        probe,
-        flags=re.I,
-    )
+    probe = re.sub(r"(?<=[A-Za-z0-9-])\s*[\u3002\uff0e\uff61\ufe52]\s*(?=[A-Za-z0-9-])", ".", probe)
+    probe = re.sub(r"(?<=[A-Za-z0-9-])\s*点\s*(?=[A-Za-z0-9-])", ".", probe)
     probe = re.sub(r"\s+(?:dot|点)\s+", ".", probe, flags=re.I)
     probe = re.sub(r"\s+(?:slash|斜杠)\s+", "/", probe, flags=re.I)
     probe = re.sub(r"\s+(?:backslash|反斜杠)\s+", r"\\", probe, flags=re.I)
-    if _DOMAIN_PATTERN.search(probe) or "/" in probe or "\\" in probe:
+    probe_folded = probe.casefold()
+    if _DOMAIN_PATTERN.search(probe_folded) or _SPACED_DOMAIN_PATTERN.search(probe_folded) or "/" in probe or "\\" in probe:
         return True
     if _MARKDOWN_PATTERN.search(folded):
         return True
-    if re.search(r"[|;$<>]|&&|\$\(|#!", folded):
+    if re.search(r"[|$<>]|&&|\$\(|#!", folded):
+        return True
+    if re.search(
+        r";\s*(?:curl|wget|bash|sh|cmd|python|node|perl|ruby|rm|sudo|"
+        r"run|download|install|execute|invoke|杩愯|涓嬭浇|瀹夎|鎵ц|璋冪敤)",
+        folded,
+    ):
         return True
     if re.search(r"(?<![a-z])&(?![a-z])", folded):
         return True

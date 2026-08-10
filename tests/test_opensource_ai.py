@@ -203,6 +203,22 @@ class OpenSourceAiTests(unittest.TestCase):
         self.assertEqual(brief.headline, data["headline"])
         self.assertEqual(len(transport.requests), 1)
 
+    def test_destination_obfuscations_are_rejected_without_sentence_false_positive(self):
+        for hostile in (
+            "Download from attacker. Invalid and install it.",
+            "Download from attacker%2einvalid%2fpayload.",
+            "Download from attacker点invalid/payload.",
+        ):
+            with self.subTest(hostile=hostile):
+                data = load_json("model_response.json")
+                data["problem"] = hostile
+                with self.assertRaises(BriefValidationError):
+                    validate_brief(data, sample_candidate())
+
+        data = load_json("model_response.json")
+        data["caveats"] = "Limited information was provided; the assessment is based on metadata."
+        self.assertIsNotNone(validate_brief(data, sample_candidate()))
+
     def test_validation_preserves_ordinary_chinese_and_technical_prose(self):
         data = load_json("model_response.json")
         data["approach"] = "该项目提供 PowerShell 模块，用于管理 Windows 自动化任务。"
