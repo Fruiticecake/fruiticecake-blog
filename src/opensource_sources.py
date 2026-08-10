@@ -1,5 +1,6 @@
 """GitHub sources for the open-source radar candidate pipeline."""
 import base64
+import binascii
 import datetime
 import json
 import logging
@@ -15,6 +16,7 @@ LOGGER = logging.getLogger(__name__)
 GITHUB_API = "https://api.github.com"
 GITHUB_TRENDING = "https://github.com/trending"
 README_LIMIT = 18_000
+EXPECTED_SOURCE_ERRORS = (OSError, json.JSONDecodeError, UnicodeDecodeError, binascii.Error)
 
 
 class _TrendingParser(HTMLParser):
@@ -124,7 +126,7 @@ def collect_candidates(client: GitHubClient, date: datetime.date) -> list[Reposi
     """Collect repository metadata candidates, with Trending optional."""
     try:
         trending = {item["full_name"].lower(): item for item in client.fetch_trending()}
-    except Exception as error:
+    except EXPECTED_SOURCE_ERRORS as error:
         LOGGER.warning("GitHub Trending unavailable; continuing with search: %s", error)
         trending = {}
 
@@ -136,7 +138,7 @@ def collect_candidates(client: GitHubClient, date: datetime.date) -> list[Reposi
     for query in queries:
         try:
             search_results = client.search_repositories(query, 50)
-        except Exception as error:
+        except EXPECTED_SOURCE_ERRORS as error:
             LOGGER.warning("GitHub search unavailable for %r; continuing: %s", query, error)
             continue
         for item in search_results:
@@ -150,7 +152,7 @@ def collect_candidates(client: GitHubClient, date: datetime.date) -> list[Reposi
         if not search_item.get("html_url"):
             try:
                 repository = client.get_repository(search_item["full_name"])
-            except Exception as error:
+            except EXPECTED_SOURCE_ERRORS as error:
                 LOGGER.warning("Could not fetch metadata for %s: %s", search_item["full_name"], error)
         candidates.append(_candidate(repository, trending.get(key)))
     return candidates
@@ -165,7 +167,7 @@ def enrich_readmes(
     for candidate in candidates[: max(0, limit)]:
         try:
             candidate.readme = client.get_readme(candidate.full_name)[:README_LIMIT]
-        except Exception as error:
+        except EXPECTED_SOURCE_ERRORS as error:
             LOGGER.warning("Could not fetch README for %s: %s", candidate.full_name, error)
             candidate.readme = ""
     return candidates

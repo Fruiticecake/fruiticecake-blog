@@ -60,6 +60,26 @@ def extract_count(summary):
     return m.group(1) if m else ""
 
 
+def parse_frontmatter(text):
+    """Parse legacy frontmatter while decoding JSON values emitted by generators."""
+    meta, body = util.parse_frontmatter(text)
+    if not text.startswith("---"):
+        return meta, body
+    match = re.match(r"^---\s*\n(.*?)\n---\s*\n?", text, re.S)
+    if not match:
+        return meta, body
+    for line in match.group(1).splitlines():
+        if ":" not in line:
+            continue
+        key, raw_value = line.split(":", 1)
+        try:
+            meta[key.strip()] = json.loads(raw_value.strip())
+        except json.JSONDecodeError:
+            # Existing hand-authored frontmatter is deliberately not JSON-only.
+            continue
+    return meta, body
+
+
 # ---------------- 加载文章 ----------------
 def load_posts(cfg):
     sections = {}
@@ -76,8 +96,9 @@ def load_posts(cfg):
             if not fn.endswith(".md"):
                 continue
             path = os.path.join(sdir, fn)
-            text = open(path, encoding="utf-8").read()
-            meta, body = util.parse_frontmatter(text)
+            with open(path, encoding="utf-8") as source:
+                text = source.read()
+            meta, body = parse_frontmatter(text)
             raw_html = str(meta.get("html", "")).lower() in ("true", "1", "yes")
             is_chat = sd["slug"] == "ai-chat" or str(meta.get("type", "")).lower() == "chat"
             if is_chat:

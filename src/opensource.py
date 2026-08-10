@@ -21,7 +21,7 @@ from opensource_ai import (
     analyze_candidate,
 )
 from opensource_models import DailyDigest, ProjectBrief, RepositoryCandidate
-from opensource_ranker import select_candidates
+from opensource_ranker import rank_candidates, select_briefs
 from opensource_render import render_digest
 from opensource_sources import GitHubClient, collect_candidates, enrich_readmes
 
@@ -175,7 +175,7 @@ def collect_live_briefs(date: datetime.date, content_dir: Path) -> list[ProjectB
         raise RuntimeError("DEEPSEEK_API_KEY is required for live open-source radar runs")
     github_client = GitHubClient(github_token)
     candidates = collect_candidates(github_client, date)
-    ranked = select_candidates(
+    ranked = rank_candidates(
         candidates,
         recent_seen_names(content_dir, date),
         limit=MAX_ANALYSIS_CANDIDATES,
@@ -197,13 +197,18 @@ def collect_live_briefs(date: datetime.date, content_dir: Path) -> list[ProjectB
         except (BriefValidationError, ModelTransportError) as error:
             LOGGER.warning("Could not analyze %s: %s", candidate.full_name, error)
             continue
-        if len(briefs) == MAX_PROJECTS:
+        if len(select_briefs(briefs, limit=MAX_PROJECTS, minimum=MIN_PROJECTS)) == MAX_PROJECTS:
             break
     if len(briefs) < MIN_PROJECTS:
         raise IncompleteDigestError(
             f"Need at least {MIN_PROJECTS} valid project briefs; got {len(briefs)}"
         )
-    return briefs
+    published = select_briefs(briefs, limit=MAX_PROJECTS, minimum=MIN_PROJECTS)
+    if len(published) < MIN_PROJECTS:
+        raise IncompleteDigestError(
+            f"Need at least {MIN_PROJECTS} publishable project briefs; got {len(published)}"
+        )
+    return published
 
 
 def _target_path(content_dir: Path, date: datetime.date) -> Path:

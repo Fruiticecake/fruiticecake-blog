@@ -3,12 +3,13 @@ import datetime
 import math
 import re
 
-from opensource_models import RepositoryCandidate
+from opensource_models import ProjectBrief, RepositoryCandidate
 
 
 CATEGORY_WEIGHTS = {"ai": 0.35, "devtools": 0.25, "platform": 0.25, "other": 0.15}
 EXCEPTIONAL_REPEAT_STARS = 1000
 SAFE_MINIMUM = 8
+FINAL_CATEGORY_CAPS = {"ai": 5, "devtools": 4, "platform": 4, "other": 3}
 
 CATEGORY_TERMS = {
     "ai": {
@@ -18,7 +19,7 @@ CATEGORY_TERMS = {
     },
     "devtools": {
         "build tool", "ci", "cli", "code generator", "compiler", "debugger",
-        "developer tool", "developer tools", "formatter", "ide", "linter",
+        "developer tool", "developer tools", "devtools", "formatter", "ide", "linter",
         "package manager", "sdk", "shell", "testing", "workflow",
     },
     "platform": {
@@ -64,10 +65,10 @@ def score_candidate(
     return quality + recency + relevance + trending + growth - repeat_penalty
 
 
-def select_candidates(
+def rank_candidates(
     candidates: list[RepositoryCandidate], seen: set[str], limit: int = 20
 ) -> list[RepositoryCandidate]:
-    """Return eligible, de-duplicated candidates in a stable ranked order."""
+    """Return a full eligible analysis reserve without applying publication caps."""
     seen_names = {name.lower() for name in seen}
     unique: dict[str, RepositoryCandidate] = {}
     for candidate in candidates:
@@ -91,7 +92,18 @@ def select_candidates(
     )
     for candidate in unique.values():
         candidate.score = score_candidate(candidate, seen, now)
-    ordered = sorted(unique.values(), key=lambda item: (-item.score, item.full_name.lower()))
+    return sorted(
+        unique.values(), key=lambda item: (-item.score, item.full_name.lower())
+    )[:limit]
+
+
+def select_candidates(
+    candidates: list[RepositoryCandidate], seen: set[str], limit: int = 20
+) -> list[RepositoryCandidate]:
+    """Select metadata candidates to category targets, with minimum-only backfill."""
+    ordered = rank_candidates(candidates, seen, limit=limit)
+    if not ordered:
+        return []
     target_limit = min(limit, len(ordered))
     quotas = _category_quotas(target_limit)
     selected: list[RepositoryCandidate] = []
@@ -113,6 +125,46 @@ def select_candidates(
             selected.append(candidate)
             selected_names.add(candidate.full_name.lower())
     return sorted(selected, key=lambda item: (-item.score, item.full_name.lower()))
+
+
+def select_briefs(
+    briefs: list[ProjectBrief], limit: int = 12, minimum: int = SAFE_MINIMUM
+) -> list[ProjectBrief]:
+    """Apply publication category targets after model analysis has succeeded."""
+    if limit <= 0:
+        return []
+    ordered = briefs[:]
+    target_limit = min(limit, len(ordered))
+    quotas = _category_quotas(target_limit)
+    selected_ids: set[int] = set()
+    counts = {category: 0 for category in CATEGORY_WEIGHTS}
+
+    def category_for(brief: ProjectBrief) -> str:
+        category = brief.candidate.category
+        return category if category in CATEGORY_WEIGHTS else "other"
+
+    for brief in ordered:
+        category = category_for(brief)
+        if counts[category] < quotas[category]:
+            selected_ids.add(id(brief))
+            counts[category] += 1
+
+    # Use the documented final-set caps when one target category is unavailable.
+    for brief in ordered:
+        if len(selected_ids) >= target_limit:
+            break
+        category = category_for(brief)
+        if id(brief) not in selected_ids and counts[category] < FINAL_CATEGORY_CAPS[category]:
+            selected_ids.add(id(brief))
+            counts[category] += 1
+
+    # A useful digest is preferable to failing solely because the source mix is narrow.
+    minimum_target = min(target_limit, minimum)
+    for brief in ordered:
+        if len(selected_ids) >= minimum_target:
+            break
+        selected_ids.add(id(brief))
+    return [brief for brief in ordered if id(brief) in selected_ids][:target_limit]
 
 
 def _category_quotas(limit: int) -> dict[str, int]:

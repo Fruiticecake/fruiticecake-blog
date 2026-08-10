@@ -159,6 +159,14 @@ The originally planned GitHub Models dependency was retired before release. New 
 - default endpoint: `https://api.deepseek.com/chat/completions` (`DEEPSEEK_ENDPOINT` may override it);
 - default model: `deepseek-v4-flash` (`DEEPSEEK_MODEL` may override it);
 - authentication: `DEEPSEEK_API_KEY` as a bearer token;
+
+### 5.4 Two-stage reserve and publication selection
+
+Candidate ranking and publication category selection are intentionally separate. The deterministic ranker first produces up to 20 eligible metadata candidates after duplicate, fork, archive, and seven-day repeat filtering. Category targets do not truncate this analysis reserve, so a narrow-source day can still tolerate per-project model failures. README enrichment and model analysis operate on that bounded reserve.
+
+Only validated briefs enter publication selection. The final 8-12 projects follow the 35/25/25/15 targets and the 12-item caps (5 AI, 4 developer tools, 4 platform, 3 other) as far as the available validated briefs allow. When the source pool cannot provide enough categories, selection may cross a cap only to reach the safe minimum of eight.
+
+For manual workflow dispatch, `dry-run` executes radar diagnostics with `--dry-run` but gates both the write-capable AI HOT step and the commit/push step. Push and scheduled events remain publishing runs.
 - structured output: `response_format: {"type": "json_object"}`;
 - reasoning mode: `thinking: {"type": "disabled"}`.
 

@@ -12,6 +12,7 @@ EXPECTED_PIPELINE = [
 ]
 GITHUB_TOKEN_ENV = "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}"
 DEEPSEEK_TOKEN_ENV = "DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}"
+NON_DRY_RUN_GATE = "if: ${{ inputs['dry-run'] != true }}"
 
 
 def _extract_named_step_blocks(text):
@@ -49,6 +50,7 @@ def _assert_workflow_contract(test_case, text):
     blocks = dict(steps)
 
     aihot = blocks["Fetch AI HOT daily"]
+    test_case.assertRegex(aihot, rf"(?m)^        {re.escape(NON_DRY_RUN_GATE)}\s*$")
     for fragment in (
         "set +e",
         "python3 src/aihot.py",
@@ -84,6 +86,9 @@ def _assert_workflow_contract(test_case, text):
     test_case.assertEqual(text.count(DEEPSEEK_TOKEN_ENV), 1)
     test_case.assertIn("run: python -m unittest discover -s tests -v", blocks["Run tests"])
     test_case.assertIn("run: python3 src/generator.py", blocks["Generate site"])
+    commit = blocks["Commit & push"]
+    test_case.assertRegex(commit, rf"(?m)^        {re.escape(NON_DRY_RUN_GATE)}\s*$")
+    test_case.assertNotIn(NON_DRY_RUN_GATE, radar)
 
 
 class WorkflowConfigurationTests(unittest.TestCase):
@@ -124,6 +129,34 @@ class WorkflowConfigurationTests(unittest.TestCase):
         self.assertNotEqual(text, mutated)
         with self.assertRaises(AssertionError):
             _assert_workflow_contract(self, mutated)
+
+    def test_contract_rejects_commented_non_publishing_gates(self):
+        text = Path(".github/workflows/build.yml").read_text(encoding="utf-8")
+        for step_name in ("Fetch AI HOT daily", "Commit & push"):
+            with self.subTest(step=step_name):
+                marker = f"      - name: {step_name}\n        {NON_DRY_RUN_GATE}\n"
+                mutated = text.replace(
+                    marker,
+                    f"      - name: {step_name}\n        # {NON_DRY_RUN_GATE}\n",
+                )
+
+                self.assertNotEqual(text, mutated)
+                with self.assertRaises(AssertionError):
+                    _assert_workflow_contract(self, mutated)
+
+    def test_contract_rejects_dry_run_gate_moved_to_non_writing_step(self):
+        text = Path(".github/workflows/build.yml").read_text(encoding="utf-8")
+        for step_name in ("Fetch AI HOT daily", "Commit & push"):
+            with self.subTest(step=step_name):
+                marker = f"      - name: {step_name}\n        {NON_DRY_RUN_GATE}\n"
+                mutated = text.replace(marker, f"      - name: {step_name}\n").replace(
+                    "      - name: Run tests\n",
+                    f"      - name: Run tests\n        {NON_DRY_RUN_GATE}\n",
+                )
+
+                self.assertNotEqual(text, mutated)
+                with self.assertRaises(AssertionError):
+                    _assert_workflow_contract(self, mutated)
 
 
 if __name__ == "__main__":

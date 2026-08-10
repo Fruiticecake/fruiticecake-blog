@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from opensource_models import RepositoryCandidate
-from opensource_ranker import infer_category, select_candidates
+from opensource_ranker import infer_category, rank_candidates, select_candidates
 
 
 NOW = datetime.datetime(2026, 8, 9, 12, 0, 0)
@@ -64,6 +64,17 @@ def make_category_fixture():
 
 
 class SelectCandidatesTests(unittest.TestCase):
+    def test_analysis_reserve_keeps_twenty_eligible_same_category_candidates(self):
+        candidates = [
+            candidate(f"org/ai-reserve-{index}", category="ai", trending_rank=index + 1)
+            for index in range(20)
+        ]
+
+        reserve = rank_candidates(candidates, set(), limit=20)
+
+        self.assertEqual(len(reserve), 20)
+        self.assertEqual({item.category for item in reserve}, {"ai"})
+
     def test_seen_repository_is_excluded_unless_daily_growth_is_exceptional(self):
         ordinary = candidate("org/ordinary-repeat", stars_today=999)
         exceptional = candidate("org/exceptional-repeat", stars_today=1000)

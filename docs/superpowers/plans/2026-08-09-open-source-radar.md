@@ -10,6 +10,8 @@
 
 **Provider correction (final review):** The original GitHub Models integration was retired before release. Live generation now uses `DEEPSEEK_API_KEY` with `DEEPSEEK_ENDPOINT` defaulting to `https://api.deepseek.com/chat/completions` and `DEEPSEEK_MODEL` defaulting to `deepseek-v4-flash`. Requests use JSON-object mode with thinking disabled. `GITHUB_TOKEN` is used only for GitHub repository data. A live run without either required key fails closed; committed historical digests remain renderable by the static generator without any key.
 
+**Final review round 2 correction:** Ranking now exposes a two-stage contract. `rank_candidates(..., limit=20)` returns the complete eligible analysis reserve without publication category truncation. After bounded README enrichment and independent model validation, `select_briefs(..., limit=12, minimum=8)` applies publication targets and caps, with cap-crossing backfill limited to the safe minimum. Workflow-dispatch dry runs gate AI HOT and commit/push while passing `--dry-run` to radar. Generator parsing JSON-decodes machine-written frontmatter values while retaining legacy unquoted values.
+
 ## Global Constraints
 
 - The public route is `/opensource/`; the visible name is `开源雷达` and subtitle is `Open Source Radar`.
@@ -35,7 +37,8 @@
 **Interfaces:**
 - Produces: `RepositoryCandidate`, `ProjectBrief`, and `DailyDigest` dataclasses.
 - Produces: `score_candidate(candidate: RepositoryCandidate, seen: set[str], now: datetime.datetime) -> float`.
-- Produces: `select_candidates(candidates: list[RepositoryCandidate], seen: set[str], limit: int = 20) -> list[RepositoryCandidate]`.
+- Produces: `rank_candidates(candidates: list[RepositoryCandidate], seen: set[str], limit: int = 20) -> list[RepositoryCandidate]` for the analysis reserve.
+- Produces: `select_candidates(...)` for metadata-level compatibility and `select_briefs(briefs, limit=12, minimum=8)` for final publication selection.
 - Consumed by Tasks 2–4.
 
 - [ ] **Step 1: Write ranking tests**

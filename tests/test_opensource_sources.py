@@ -6,6 +6,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import URLError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -44,7 +45,7 @@ class FakeGitHubClient:
     def search_repositories(self, query, limit):
         self.search_calls.append((query, limit))
         if len(self.search_calls) == self.search_error_on_call:
-            raise RuntimeError("temporary GitHub outage")
+            raise URLError("temporary GitHub outage")
         return self.items[:limit]
 
     def get_repository(self, full_name):
@@ -54,7 +55,7 @@ class FakeGitHubClient:
     def get_readme(self, full_name):
         self.readme_calls.append(full_name)
         if full_name in self.readme_errors:
-            raise RuntimeError("README unavailable")
+            raise URLError("README unavailable")
         return "README " + ("x" * 18001)
 
 
@@ -64,7 +65,7 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(items[0], {"full_name": "sample/agent-kit", "rank": 1, "stars_today": 842})
 
     def test_collect_candidates_survives_trending_failure(self):
-        client = FakeGitHubClient(trending_error=RuntimeError("layout changed"))
+        client = FakeGitHubClient(trending_error=URLError("layout changed"))
 
         result = collect_candidates(client, datetime.date(2026, 8, 9))
 
@@ -72,6 +73,12 @@ class SourceTests(unittest.TestCase):
         self.assertTrue(client.search_calls)
         self.assertTrue(all(not item.readme for item in result))
         self.assertEqual(client.readme_calls, [])
+
+    def test_unexpected_source_programming_error_propagates(self):
+        client = FakeGitHubClient(trending_error=RuntimeError("programming bug"))
+
+        with self.assertRaisesRegex(RuntimeError, "programming bug"):
+            collect_candidates(client, datetime.date(2026, 8, 9))
 
     def test_collect_ranks_metadata_before_readme_and_enriches_only_twenty_shortlisted_items(self):
         client = FakeGitHubClient(readme_errors={"sample/5"})

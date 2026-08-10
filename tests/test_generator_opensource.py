@@ -26,6 +26,29 @@ FIXTURE_MARKERS = (
 
 
 class OpenSourceGeneratorTests(unittest.TestCase):
+    def test_quoted_trend_frontmatter_roundtrips_through_generator_parser(self):
+        with tempfile.TemporaryDirectory() as directory:
+            content = Path(directory) / "content"
+            radar_content = content / "opensource"
+            radar_content.mkdir(parents=True)
+            digest = opensource.build_digest(
+                opensource.load_fixture(FIXTURE),
+                date="2026-08-09",
+                trends=['R&D says "fast" <now>', "trend two", "trend three"],
+            )
+            (radar_content / "2026-08-09.md").write_text(
+                opensource.digest_markdown(digest),
+                encoding="utf-8",
+            )
+
+            with patch.object(generator, "CONTENT", str(content)):
+                sections, _ = generator.load_posts(generator.load_config())
+            page = generator.render_opensource_section(sections["opensource"])
+
+        self.assertIn("R&amp;D says &quot;fast&quot; &lt;now&gt;", page)
+        self.assertNotIn("R&amp;amp;D", page)
+        self.assertNotIn("\\&quot;", page)
+
     def test_history_rows_use_bounded_single_escaped_trend_summaries(self):
         latest = Post(
             slug="2026-08-10", section="opensource", title="Latest title",
