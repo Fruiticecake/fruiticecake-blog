@@ -17,6 +17,7 @@ class Post:
     src_path: str = ""
     source: str = ""
     model: str = ""
+    meta: dict = field(default_factory=dict)
 
     @property
     def url(self):

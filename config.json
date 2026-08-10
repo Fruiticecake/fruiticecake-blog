@@ -34,6 +34,13 @@
       "name": "技术文档",
       "description": "技术笔记、教程与参考资料",
       "dot": "#a89a80"
+    },
+    {
+      "slug": "opensource",
+      "name": "开源雷达",
+      "description": "每天 5 分钟，读懂正在流行的开源项目",
+      "auto": true,
+      "dot": "#4f7564"
     }
   ]
 }

@@ -1,4 +1,4 @@
-<article class="post">
+<article class="post$post_class">
   <header class="post-head">
     <div class="meta">
       <a class="sec-badge sec-$slug" href="$section_url">$section_name</a>

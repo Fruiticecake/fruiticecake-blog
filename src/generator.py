@@ -100,7 +100,7 @@ def load_posts(cfg):
                 date=date, summary=make_summary(body_html, meta),
                 tags=list(tags), body_html=body_html, src_path=path,
                 source=str(meta.get("source") or ""),
-                model=str(meta.get("model") or ""))
+                model=str(meta.get("model") or ""), meta=meta)
             sections[sd["slug"]].posts.append(post)
             all_posts.append(post)
     for sec in sections.values():
@@ -216,11 +216,46 @@ def render_docs_section(sec):
     return f'<div class="docs-index">{rows}</div>' if rows else '<p class="empty-note">暂无内容。</p>'
 
 
+def render_opensource_section(sec):
+    if not sec.posts:
+        return '<p class="empty-note">暂无内容。</p>'
+
+    latest, history = sec.posts[0], sec.posts[1:]
+    trends = [str(latest.meta.get(f"trend_{index}") or "") for index in range(1, 4)]
+    trend_html = "".join(f'<li>{util.html_escape(trend)}</li>' for trend in trends if trend)
+    project_count = latest.meta.get("project_count")
+    count_html = (f'<span class="opensource-project-count">{util.html_escape(str(project_count))} 个项目</span>'
+                  if project_count is not None else "")
+    rail_html = "".join(
+        f'<a class="streak-day{" active" if index == 0 else ""}" href="{post.url}">'
+        f'<div class="streak-wd">{util.weekday_cn(post.date)}</div>'
+        f'<div class="streak-num">{post.date.day}</div></a>'
+        for index, post in enumerate(sec.posts[:14]))
+    history_html = "".join(
+        f'<a class="aihot-list-row" href="{post.url}">'
+        f'<div><div class="aihot-list-date">{post.date_human}</div>'
+        f'<div class="aihot-list-headline">{util.html_escape(post.title)}</div></div>'
+        f'<span class="aihot-list-count">查看日报 →</span></a>'
+        for post in history)
+    return (
+        f'<a class="opensource-lead" href="{latest.url}">'
+        f'<div><div class="opensource-lead-kicker">最新一期 {count_html}</div>'
+        f'<h2>{util.html_escape(latest.title)}</h2>'
+        f'<p>{util.html_escape(latest.summary)}</p></div>'
+        f'<span>阅读日报 →</span></a>'
+        f'<section class="opensource-trends"><h2>今日风向</h2><ol>{trend_html}</ol></section>'
+        f'<section class="opensource-rail"><h2>14 日轨迹</h2>'
+        f'<div class="streak-row">{rail_html}</div></section>'
+        f'<section class="opensource-history"><h2>历史日报</h2>'
+        f'<div class="aihot-list">{history_html}</div></section>')
+
+
 SECTION_RENDERERS = {
     "aihot": lambda sec, nmap: render_aihot_section(sec),
     "ai-chat": lambda sec, nmap: render_chat_section(sec),
     "blog": lambda sec, nmap: render_blog_section(sec),
     "docs": lambda sec, nmap: render_docs_section(sec),
+    "opensource": lambda sec, nmap: render_opensource_section(sec),
 }
 
 
@@ -299,6 +334,7 @@ def build_post(cfg, sections, post):
                   if post.model else "")
     content = t.substitute(
         slug=post.section, section_url=f"/{post.section}/",
+        post_class=" post-wide" if post.section == "opensource" else "",
         section_name=util.html_escape(sections[post.section].name),
         date=post.date_human, title=util.html_escape(post.title),
         reading_time=post.reading_time, model_html=model_html,
