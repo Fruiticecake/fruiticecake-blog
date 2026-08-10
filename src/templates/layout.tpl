@@ -6,6 +6,7 @@
 <title>$title</title>
 <meta name="description" content="$description">
 <meta name="author" content="Fruiticecake">
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="/style.css">
 <link rel="alternate" type="application/rss+xml" title="$brand" href="/feed.xml">
 </head>

@@ -17,7 +17,9 @@ class OpenSourceGeneratorTests(unittest.TestCase):
             with patch.object(generator, "PUBLIC", str(public)):
                 generator.main()
 
-            self.assertIn('href="/opensource/"', (public / "index.html").read_text(encoding="utf-8"))
+            homepage = (public / "index.html").read_text(encoding="utf-8")
+            self.assertIn('href="/opensource/"', homepage)
+            self.assertIn('<link rel="icon" href="data:,">', homepage)
             section = (public / "opensource" / "index.html").read_text(encoding="utf-8")
             self.assertIn("今日风向", section)
             self.assertIn("GitHub Trending 第 1 名", section)

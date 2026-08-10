@@ -60,6 +60,15 @@ def build_fixture_page() -> str:
 
 
 class OpenSourceMarkupTests(unittest.TestCase):
+    def test_mobile_navigation_wraps_without_horizontal_scrolling(self):
+        css = CSS_PATH.read_text(encoding="utf-8")
+        mobile_css = css[css.rfind("@media(max-width:720px)") :]
+
+        self.assertRegex(
+            mobile_css,
+            r"\.site-nav \.wrap\{[^}]*flex-wrap:wrap[^}]*overflow-x:visible",
+        )
+
     def test_repository_cards_have_safe_external_links_and_labels(self):
         page = build_fixture_page()
 
