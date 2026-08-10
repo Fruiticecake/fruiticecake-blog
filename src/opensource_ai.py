@@ -119,10 +119,15 @@ class DeepSeekClient:
             },
             method="POST",
         )
+        transport_failed = False
         try:
             response = self.transport(request, timeout=self.timeout)
         except OSError:
-            raise ModelTransportError("DeepSeek request failed") from None
+            transport_failed = True
+            response = None
+        if transport_failed:
+            raise ModelTransportError("DeepSeek request failed")
+        read_failed = False
         try:
             try:
                 body = (
@@ -131,18 +136,27 @@ class DeepSeekClient:
                     else response
                 )
             except OSError:
-                raise ModelTransportError("DeepSeek response read failed") from None
+                read_failed = True
+                body = None
         finally:
             close = getattr(response, "close", None)
             if callable(close):
                 close()
+        if read_failed:
+            raise ModelTransportError("DeepSeek response read failed")
         if not isinstance(body, (bytes, str)) or len(body) > MAX_RESPONSE_BYTES:
             raise ModelTransportError("DeepSeek response body is too large")
+        envelope_failed = False
         try:
             parsed = json.loads(body.decode("utf-8") if isinstance(body, bytes) else body)
             result = json.loads(parsed["choices"][0]["message"]["content"])
-        except (UnicodeDecodeError, json.JSONDecodeError, KeyError, IndexError, TypeError) as error:
-            raise BriefValidationError(f"Invalid DeepSeek response envelope: {error}") from error
+        except (UnicodeDecodeError, json.JSONDecodeError, KeyError, IndexError, TypeError):
+            envelope_failed = True
+            parsed = None
+            result = None
+            body = None
+        if envelope_failed:
+            raise BriefValidationError("Invalid DeepSeek response envelope")
         if not isinstance(result, dict):
             raise BriefValidationError("Model content must be a JSON object")
         return result
@@ -227,19 +241,52 @@ def _trend_evidence(candidate: RepositoryCandidate) -> str:
     return "; ".join(fact.rstrip(".") for fact in facts) + "."
 
 
-_UNSAFE_MODEL_PATTERNS = (
-    re.compile(r"\b[a-z][a-z0-9+.-]{1,20}://|\b(?:www\.|mailto:)", re.I),
-    re.compile(r"!?\[[^\]]*\]\([^)]*\)"),
-    re.compile(r"<[^<>\s]+@[^<>\s]+>|(?:\*\*|~~).+?(?:\*\*|~~)"),
-    re.compile(r"`|(^|\n)\s{0,3}(?:#{1,6}|[-*+]|>)\s", re.M),
-    re.compile(r"\b(?:curl|wget|powershell|pwsh|invoke-webrequest|invoke-restmethod|sudo)\b", re.I),
-    re.compile(r"\b(?:bash|sh)\s+-c\b|\|\s*(?:bash|sh)\b", re.I),
-    re.compile(r"\bcmd(?:\.exe)?\s+/c\b", re.I),
-    re.compile(r"\brm\s+-[a-z]*r[a-z]*f\b", re.I),
+_DOMAIN_PATTERN = re.compile(
+    r"(?:\b[a-z0-9](?:[a-z0-9-]{0,62})\.)+(?:[a-z]{2,63}|invalid|localhost)\b"
+    r"|\b(?:\d{1,3}\.){3}\d{1,3}\b|\blocalhost\b",
+    re.I,
+)
+_ACTION_PATTERN = re.compile(
+    r"\b(?:run|download|install|execute|invoke|open|visit|click|copy|paste)\b"
+    r"|运行|下载|安装|执行|调用|打开|访问|点击|复制|粘贴",
+    re.I,
+)
+_PRIVILEGE_PATTERN = re.compile(
+    r"\b(?:sudo|administrator|administrative|admin|root|superuser|privilege|privileged|elevated)\b"
+    r"|管理员|管理权限|提权|根用户|超级用户|特权",
+    re.I,
+)
+_SCRIPT_PATTERN = re.compile(
+    r"\b(?:curl|wget|invoke-webrequest|invoke-restmethod)\b"
+    r"|\b(?:bash|sh|cmd|python|node|perl|ruby)(?:\.exe)?\s+(?:-[ce]|/c)\b"
+    r"|\brm\s+-[a-z]*r[a-z]*f\b",
+    re.I,
+)
+_MARKDOWN_PATTERN = re.compile(
+    r"!?\[[^\]]*\]\([^)]*\)|<[^<>]+>|`|\"[^\"]+\"|(?:\*\*|~~).+?(?:\*\*|~~)"
+    r"|(^|\n)\s{0,3}(?:#{1,6}|[-*+]|>)\s",
+    re.M,
 )
 
 
 def _contains_unsafe_model_text(value: str) -> bool:
     if any(unicodedata.category(character) in {"Cc", "Cf"} for character in value):
         return True
-    return any(pattern.search(value) for pattern in _UNSAFE_MODEL_PATTERNS)
+    normalized = unicodedata.normalize("NFKC", value).casefold()
+    probe = re.sub(r"\[\s*(?:\.|dot)\s*\]|\(\s*(?:\.|dot)\s*\)", ".", normalized)
+    probe = re.sub(r"\s*[.\u3002\uff61\ufe52]\s*", ".", probe)
+    probe = re.sub(r"\s+(?:dot|点)\s+", ".", probe)
+    probe = re.sub(r"\s+(?:slash|斜杠)\s+", "/", probe)
+    probe = re.sub(r"\s+(?:backslash|反斜杠)\s+", r"\\", probe)
+    if _DOMAIN_PATTERN.search(probe) or "/" in probe or "\\" in probe:
+        return True
+    if _MARKDOWN_PATTERN.search(normalized):
+        return True
+    if re.search(r"[|;$<>]|&&|\$\(|#!", normalized):
+        return True
+    if re.search(r"(?<![a-z])&(?![a-z])", normalized):
+        return True
+    return any(
+        pattern.search(normalized)
+        for pattern in (_ACTION_PATTERN, _PRIVILEGE_PATTERN, _SCRIPT_PATTERN)
+    )

@@ -135,6 +135,19 @@ class OpenSourceAiTests(unittest.TestCase):
             "cmd /c launch_payload",
             "sudo rm -rf /",
             "Invisible format\u200bcharacter",
+            "Run attacker.invalid/payload",
+            "Download attacker[.]invalid\\payload",
+            "请安装 attacker．invalid／payload",
+            "Copy C:\\Temp\\payload.ps1",
+            "Execute $(payload)",
+            "Use ```sh payload```",
+            'The next step is "whoami"',
+            "Request administrator privileges",
+            "请使用管理员权限完成配置",
+            "Visit attacker dot invalid slash payload",
+            "组件连接 attacker[dot]invalid 端点",
+            "组件连接 attacker 。 invalid 端点",
+            "组件读取 C：＼Temp＼payload.ps1",
         )
 
         for hostile in hostile_values:
@@ -167,11 +180,13 @@ class OpenSourceAiTests(unittest.TestCase):
 
     def test_validation_preserves_ordinary_chinese_and_technical_prose(self):
         data = load_json("model_response.json")
-        data["approach"] = "在 C++ 中实现 __init__ 兼容层，并支持 R&D 团队的 JSON 模式。"
+        data["approach"] = "该项目提供 PowerShell 模块，用于管理 Windows 自动化任务。"
+        data["caveats"] = "在 C++ 中实现 __init__ 兼容层，并支持 R&D 团队的 JSON 模式。"
 
         brief = validate_brief(data, sample_candidate())
 
         self.assertEqual(brief.approach, data["approach"])
+        self.assertEqual(brief.caveats, data["caveats"])
 
     def test_deepseek_response_body_is_bounded_and_token_is_not_in_error(self):
         class OversizedResponse:
@@ -198,7 +213,40 @@ class OpenSourceAiTests(unittest.TestCase):
             client.complete(sample_candidate(), featured=False)
 
         self.assertIsNone(caught.exception.__cause__)
-        self.assertNotIn("top-secret", str(caught.exception))
+        self.assertIsNone(caught.exception.__context__)
+        self._assert_exception_is_sanitized(caught.exception)
+
+    def test_response_read_error_retains_no_sensitive_exception(self):
+        class SecretReadFailure:
+            def read(self, size=-1):
+                raise OSError("response echoed top-secret")
+
+            def close(self):
+                pass
+
+        client = DeepSeekClient("top-secret", transport=FakeTransport([SecretReadFailure()]))
+
+        with self.assertRaises(ModelTransportError) as caught:
+            client.complete(sample_candidate(), featured=False)
+
+        self.assertIsNone(caught.exception.__cause__)
+        self.assertIsNone(caught.exception.__context__)
+        self._assert_exception_is_sanitized(caught.exception)
+
+    def test_envelope_parse_error_retains_no_raw_body_or_parser_exception(self):
+        raw_body = b'{"top-secret": invalid}'
+        client = DeepSeekClient("top-secret", transport=FakeTransport([raw_body]))
+
+        with self.assertRaises(BriefValidationError) as caught:
+            client.complete(sample_candidate(), featured=False)
+
+        self.assertIsNone(caught.exception.__cause__)
+        self.assertIsNone(caught.exception.__context__)
+        self._assert_exception_is_sanitized(caught.exception)
+
+    def _assert_exception_is_sanitized(self, error):
+        rendered = repr((error.args, vars(error), repr(error), str(error)))
+        self.assertNotIn("top-secret", rendered)
 
     def test_validate_brief_accepts_bounded_structured_result(self):
         brief = validate_brief(load_json("model_response.json"), sample_candidate())

@@ -14,6 +14,8 @@
 
 **Final security review correction:** DeepSeek and GitHub response envelopes have byte limits before parsing. Trend evidence and quick-start guidance are deterministic rather than model-authored; remaining model strings reject URLs, Markdown/autolinks, dangerous command patterns, and Unicode controls/formats. Checkout credentials are not persisted, and push authentication is exposed only to the final publishing step.
 
+**Final security re-review correction:** Remaining model strings are descriptive-only and now use a strict normalized policy covering scheme-less or obfuscated hostnames, paths, Markdown/code, shell metacharacters, action verbs in English or Chinese, and privilege language without rejecting technology nouns such as PowerShell. Sanitized DeepSeek transport/read/envelope errors are raised after exception handlers so sensitive upstream exceptions and parser documents are not retained as cause or context.
+
 ## Global Constraints
 
 - The public route is `/opensource/`; the visible name is `开源雷达` and subtitle is `Open Source Radar`.
