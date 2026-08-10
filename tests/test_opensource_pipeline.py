@@ -177,6 +177,18 @@ class OpenSourcePipelineTests(unittest.TestCase):
 
             self.assertEqual(target.read_text(encoding="utf-8"), original)
 
+    def test_existing_digest_with_more_than_twelve_projects_fails_without_overwrite(self):
+        with tempfile.TemporaryDirectory() as directory:
+            content_dir = Path(directory)
+            target = content_dir / "2026-08-09.md"
+            original = valid_existing_digest(project_count=13)
+            target.write_text(original, encoding="utf-8")
+            with patch.object(opensource, "DEFAULT_CONTENT_DIR", content_dir):
+                with self.assertRaises(ValueError):
+                    opensource.main(["--date", "2026-08-09", "--fixture", "tests/fixtures/briefs.json"])
+
+            self.assertEqual(target.read_text(encoding="utf-8"), original)
+
     def test_force_write_keeps_existing_digest_when_atomic_replace_fails(self):
         with tempfile.TemporaryDirectory() as directory:
             content_dir = Path(directory)

@@ -201,7 +201,11 @@ def _digest_metadata(document: str, date: datetime.date) -> tuple[int, int]:
     if not all(isinstance(value, str) and value.strip() for value in trend_values):
         raise ValueError("Digest trends are invalid")
     project_count = frontmatter["project_count"]
-    if isinstance(project_count, bool) or not isinstance(project_count, int) or project_count < MIN_PROJECTS:
+    if (
+        isinstance(project_count, bool)
+        or not isinstance(project_count, int)
+        or not MIN_PROJECTS <= project_count <= MAX_PROJECTS
+    ):
         raise ValueError("Digest project count is invalid")
     if '<section class="radar-digest">' not in body or '<section class="radar-trends">' not in body:
         raise ValueError("Digest body is missing required sections")
