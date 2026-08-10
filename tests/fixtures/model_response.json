@@ -1,0 +1,11 @@
+{
+  "headline": "A practical toolkit for building dependable AI agents.",
+  "problem": "Teams need a repeatable way to build and operate AI agents.",
+  "approach": "It provides focused components and examples for agent workflows.",
+  "why_trending": "Its recent community interest reflects demand for production-ready agent tooling.",
+  "audience": "Python developers evaluating AI-agent infrastructure.",
+  "difficulty": "中等",
+  "differentiator": "It emphasizes a compact, composable developer experience.",
+  "quick_start": "Read the README, install the package, and run one included example.",
+  "caveats": "Review the project's maturity and operational fit before adoption."
+}
