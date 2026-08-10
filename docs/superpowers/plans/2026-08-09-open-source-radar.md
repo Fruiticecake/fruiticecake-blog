@@ -240,8 +240,8 @@ git commit -m "feat: generate validated project briefs"
 **Interfaces:**
 - Consumes: collection, ranking, and AI interfaces from Tasks 1–3.
 - Produces: `render_digest(digest: DailyDigest) -> str`.
-- Produces: `build_digest(briefs: list[ProjectBrief], date: datetime.date, trends: list[str]) -> DailyDigest`.
-- Produces: CLI `python src/opensource.py [--date YYYY-MM-DD] [--dry-run] [--fixture path]`.
+- Produces: `build_digest(briefs: list[ProjectBrief], date: datetime.date | str, trends: list[str] | None = None) -> DailyDigest`, normalizing ISO date strings at the boundary.
+- Produces: CLI `python src/opensource.py [--date YYYY-MM-DD] [--dry-run] [--fixture path] [--force]`.
 - Produces: a validated Markdown file with `html: true`, `section: opensource`, `trend_1..trend_3`, and `project_count` frontmatter.
 
 - [ ] **Step 1: Add pipeline and escaping tests**
