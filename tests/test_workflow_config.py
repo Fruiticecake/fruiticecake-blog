@@ -51,8 +51,14 @@ def _assert_workflow_contract(test_case, text):
         test_case.assertIn(fragment, aihot)
 
     radar = blocks["Generate open source radar"]
-    test_case.assertIn(TOKEN_ENV, radar)
-    test_case.assertIn("run: python3 src/opensource.py", radar)
+    test_case.assertRegex(
+        radar,
+        rf"(?m)^        env:\s*\n          {re.escape(TOKEN_ENV)}\s*$",
+    )
+    test_case.assertRegex(
+        radar,
+        r"(?m)^        run: python3 src/opensource\.py\s*$",
+    )
     test_case.assertNotRegex(radar, r"(?m)^\s+if\s*:")
     test_case.assertNotRegex(radar, r"(?m)^\s+continue-on-error\s*:")
 
@@ -77,6 +83,28 @@ class WorkflowConfigurationTests(unittest.TestCase):
         ).replace(
             "      - name: Run tests\n",
             f"      - name: Run tests\n        env:\n          {TOKEN_ENV}\n",
+        )
+
+        self.assertNotEqual(text, mutated)
+        with self.assertRaises(AssertionError):
+            _assert_workflow_contract(self, mutated)
+
+    def test_contract_rejects_commented_radar_token(self):
+        text = Path(".github/workflows/build.yml").read_text(encoding="utf-8")
+        mutated = text.replace(
+            f"          {TOKEN_ENV}\n",
+            f"          # {TOKEN_ENV}\n",
+        )
+
+        self.assertNotEqual(text, mutated)
+        with self.assertRaises(AssertionError):
+            _assert_workflow_contract(self, mutated)
+
+    def test_contract_rejects_commented_radar_command(self):
+        text = Path(".github/workflows/build.yml").read_text(encoding="utf-8")
+        mutated = text.replace(
+            "        run: python3 src/opensource.py\n",
+            "        # run: python3 src/opensource.py\n",
         )
 
         self.assertNotEqual(text, mutated)
