@@ -49,6 +49,7 @@ def _render_project(brief: ProjectBrief, css_class: str, detailed: bool) -> str:
     lines = [f'    <article class="{css_class}">', f"      <h3>{title}</h3>"]
     if brief.headline:
         lines.append(f"      <p>{_text(brief.headline)}</p>")
+    lines.append(f'      <span class="difficulty-label">{_text(brief.difficulty)}</span>')
     if detailed:
         for label, value in (
             ("解决问题", brief.problem),

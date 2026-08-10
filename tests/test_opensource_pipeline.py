@@ -99,6 +99,17 @@ class OpenSourcePipelineTests(unittest.TestCase):
         self.assertEqual(html.count('rel="noopener noreferrer"'), 12)
         self.assertEqual(html.count('aria-label="在 GitHub 查看 sample/project-'), 12)
 
+    def test_rendered_featured_and_quick_projects_show_escaped_difficulty_labels(self):
+        digest = sample_digest()
+        digest.featured[0].difficulty = "<featured>"
+        digest.quick[0].difficulty = "<quick>"
+
+        html = render_digest(digest)
+
+        self.assertEqual(html.count('class="difficulty-label"'), 12)
+        self.assertIn('<span class="difficulty-label">&lt;featured&gt;</span>', html)
+        self.assertIn('<span class="difficulty-label">&lt;quick&gt;</span>', html)
+
     def test_pipeline_refuses_incomplete_digest(self):
         with self.assertRaises(IncompleteDigestError):
             build_digest(sample_briefs(count=7), date="2026-08-09")
