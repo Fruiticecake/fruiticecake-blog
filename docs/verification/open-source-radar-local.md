@@ -1,56 +1,67 @@
 # Open Source Radar local verification
 
 - Date: 2026-08-10 (America/La_Paz)
-- Result: PASS
-- Build under test: production output from `python src/generator.py`
-- Server: `python -m http.server 8765 -d public`, bound to `127.0.0.1:8765` as PID `17596`
+- Result: fixture UI harness PASS; production shell build PASS; production data E2E PENDING Task 9
 - Browser: Playwright Chromium through the Playwright MCP fallback
 - Viewports: desktop `1440x1000`; mobile `375x812`
 
-## Production build and automated tests
+## Verification boundary
 
-1. `python src/generator.py` -> `OK: 60 posts, 5 sections`
-2. `python -W ignore::ResourceWarning -m unittest discover -s tests -v` -> `Ran 42 tests`, `OK`
-3. The production build was regenerated after each verification-driven fix and the complete browser journey was repeated against `public/`.
+The six screenshots and browser journey below were produced from a temporary UI harness digest generated from `tests/fixtures/briefs.json`. They verify rendering, layout, interaction, accessibility, link attributes, and browser health. They are not evidence that real repository data has been published.
 
-## Critical URLs and visible content
+The tracked fixture digest was removed from `content/opensource/` before release. The current production build contains only the Open Source Radar section shell. Task 9 GitHub Actions must generate real content, after which production E2E must be repeated against the real dated issue and real GitHub links. Until that happens, the data publication status is not PASS.
 
-| URL | HTTP | Title | Visible heading / evidence |
+## Server commands
+
+Original Task 8 run fact: the server was started as:
+
+```powershell
+python -m http.server 8765 -d public
+```
+
+It was reached through `http://127.0.0.1:8765` as PID 17596 and that exact PID was stopped after testing. The original command did not explicitly bind the server to loopback.
+
+Recommended reproduction command:
+
+```powershell
+python -m http.server 8765 --bind 127.0.0.1 -d public
+```
+
+## Fixture UI harness construction
+
+The generator integration test now creates an isolated temporary `content/opensource/` directory, invokes the Task 4 CLI with:
+
+```text
+--date 2026-08-09 --fixture tests/fixtures/briefs.json
+```
+
+It then points `generator.CONTENT` and `generator.PUBLIC` at temporary directories. This preserves coverage for the homepage link, `/opensource/`, `/opensource/2026-08-09.html`, the wide detail layout, and RSS without writing fixture data into production `content/` or `public/`.
+
+## Fixture browser evidence
+
+| Harness URL | HTTP | Title | Visible evidence |
 | --- | ---: | --- | --- |
-| `http://127.0.0.1:8765/` | 200 | `Fruiticecake` | `Fruiticecake`; 845 characters of visible body text; no error overlay |
-| `http://127.0.0.1:8765/opensource/` | 200 | `开源雷达 · Fruiticecake` | `开源雷达`; lead shows `12 个项目`; three `今日风向` items |
-| `http://127.0.0.1:8765/opensource/2026-08-09.html` | 200 | `开源雷达 · 2026-08-09 · Fruiticecake` | `开源雷达 · 2026-08-09`; `今日趋势`, `重点项目`, and `快速浏览` visible |
+| `http://127.0.0.1:8765/` | 200 | `Fruiticecake` | Homepage content present; no error overlay |
+| `http://127.0.0.1:8765/opensource/` | 200 | `开源雷达 · Fruiticecake` | Lead count 12 and three trend items |
+| `http://127.0.0.1:8765/opensource/2026-08-09.html` | 200 | `开源雷达 · 2026-08-09 · Fruiticecake` | Three featured cards and nine quick cards |
 
-The browser journey clicked the homepage top-navigation `开源雷达` link to `/opensource/`, clicked the latest lead to `/opensource/2026-08-09.html`, opened `sample/observability-mesh` in a new tab, confirmed the exact new-tab URL `https://github.com/sample/observability-mesh`, closed it, returned to the section, and clicked the `14 日轨迹` day-9 entry back to the dated issue. The fixture contains only one issue, so the `历史日报` heading is present but there is no older dated row; the date rail is the available history/date entry.
+Harness journey: homepage top navigation -> Open Source Radar section -> latest issue -> one GitHub new tab -> back to section -> 14-day date rail -> dated issue.
 
-## Project counts and link safety
+Harness-only counts and behavior:
 
 - Featured cards: 3
 - Quick cards: 9
-- Repository cards total: 12
-- Repository links with `target="_blank" rel="noopener noreferrer"`: 12/12
-- Longest repository name tested: `sample/observability-mesh`
-- Desktop: all repository-link rectangles remained inside their cards.
-- Mobile: longest repository heading `scrollWidth=290`, `clientWidth=290`; overflowing repository headings: 0.
+- Repository cards: 12
+- Safe external links with `target="_blank" rel="noopener noreferrer"`: 12/12
+- Longest fixture name: `sample/observability-mesh`; no desktop or mobile card overflow
+- New tab opened the expected fixture URL, then was closed
+- Console errors: 0; console warnings: 0; uncaught page errors: 0
+- Failed local requests: 0; local responses with status >= 400: 0
+- Critical harness document responses: 200/200/200
 
-The external destination is fixture data and GitHub currently titles it `Page not found · GitHub · GitHub`; this does not affect the verified local new-tab URL, safe-link attributes, or local resource health.
+The `sample/*` names, Trending positions, and star deltas in these harness artifacts are explicitly fictional test data and are not present in the release content or production build.
 
-## Console and network
-
-Final clean-session audit across all three local URLs:
-
-- Console errors: 0
-- Console warnings: 0
-- Uncaught page errors: 0
-- Failed local requests: 0
-- Local responses with status >= 400: 0
-- Critical document responses: 200/200/200
-- `style.css`: 200 or cache-valid 304
-- Loaded external font and Mermaid resources observed with HTTP 200
-
-The first browser run found `/favicon.ico` returning 404. Evidence was saved before the fix. The layout now declares an inline favicon (`data:,`), and a clean browser session confirmed that the 404 and console error are gone.
-
-## Overflow and responsive layout
+## Harness layout and accessibility
 
 | Page | Viewport | document `scrollWidth` | document `clientWidth` | Result |
 | --- | --- | ---: | ---: | --- |
@@ -61,21 +72,15 @@ The first browser run found `/favicon.ico` returning 404. Evidence was saved bef
 | Section | 375x812 | 360 | 360 | PASS |
 | Detail | 375x812 | 360 | 360 | PASS |
 
-The initial mobile screenshots showed the navigation's own horizontal scroller clipping `开源雷达` and `归档` at the right edge. After the CSS fix, the mobile nav uses `flex-wrap: wrap`, `overflow-x: visible`, has equal `scrollWidth` and `clientWidth` (360), and reports zero clipped links on all three pages.
+- Tab order reached global navigation, the issue lead, the date/history rail, and repository links.
+- Sampled keyboard targets matched `:focus-visible` and showed an outline or internal box-shadow.
+- Normal motion computed `.opensource-lead::after` as `animation-name: radar-scan`.
+- `prefers-reduced-motion: reduce` computed the same layer as `animation-name: none`.
+- Manual harness inspection found a consistent warm editorial style, a dominant lead, clear trend/featured/quick hierarchy, readable copy, and no final clipping, overlap, or horizontal scrolling.
 
-## Keyboard and reduced motion
+## Fixture UI screenshots
 
-- Tab order reached the global navigation (`首页`, `开源雷达`, `归档`).
-- Section Tab step 9 reached the latest lead with a 3px green outline.
-- Section Tab step 10 reached the day-9 rail/history entry with a visible inset focus box shadow.
-- Detail Tab step 10 reached `sample/agent-kit` with a 3px green outline; subsequent repository links are in normal sequential order.
-- Every recorded target matched `:focus-visible` and had an outline or internal box-shadow indicator.
-- With normal motion, `.opensource-lead::after` computed `animation-name: radar-scan`.
-- With `prefers-reduced-motion: reduce`, the same scanning layer computed `animation-name: none`.
-
-## Full-page screenshots
-
-All required artifacts are final post-fix captures.
+These retained screenshots are UI harness artifacts, not production-data screenshots.
 
 | Page | Viewport | Full-page image | Absolute path |
 | --- | --- | --- | --- |
@@ -86,13 +91,42 @@ All required artifacts are final post-fix captures.
 | Section | 375x812 | 360x1639 | `C:\Users\Administrator\.codex\visualizations\2026\08\10\019fe96c-9f34-7590-8f9c-ba60b7ae58a1\open-source-radar-local\section-mobile.png` |
 | Detail | 375x812 | 360x4018 | `C:\Users\Administrator\.codex\visualizations\2026\08\10\019fe96c-9f34-7590-8f9c-ba60b7ae58a1\open-source-radar-local\detail-mobile.png` |
 
-Pre-fix evidence is also retained as `home-desktop-before-favicon-fix.png`, `home-mobile-before-nav-fix.png`, and `section-mobile-before-nav-fix.png` in the same directory.
+Pre-fix harness evidence is retained in the same directory as `home-desktop-before-favicon-fix.png`, `home-mobile-before-nav-fix.png`, and `section-mobile-before-nav-fix.png`.
 
-## UI inspection conclusion
+## Production gate evidence
 
-PASS. The warm cream background, dark brown editorial surfaces, serif display type, clay accent, and radar green remain visually consistent with the rest of the site. The section lead is immediately dominant; its count, date, copy, radar motif, and action are legible. Three trend cells read as one ranked group. The detail page clearly separates trends, the three larger featured projects, and the nine compact quick cards. Body copy is readable at both viewports. Manual review found no final clipping, overlap, page-level or navigation-level horizontal scrolling, or truncated repository names.
+The tracked `content/opensource/2026-08-09.md` fixture was deleted. The production directory may be empty until Task 9 creates a real issue.
 
-## Verification-driven fixes
+Full suite: `python -W ignore::ResourceWarning -m unittest discover -s tests -v` -> 44 tests passed.
 
-1. Added an inline favicon declaration to prevent the browser's default `/favicon.ico` 404 and added a generator regression assertion.
-2. Wrapped the global navigation below 720px to remove its internal horizontal scroll and clipping, with a CSS regression test.
+Automated gates now assert:
+
+1. Every production `content/opensource/*.md` file excludes `sample/` and the known fictional Trending/star-delta markers.
+2. A generator build from production content into a fresh temporary `public/` tree excludes `sample/`.
+3. The fixture integration build remains entirely inside temporary content and public directories.
+
+The ignored stale harness artifact `public/opensource/2026-08-09.html` was removed before the normal production rebuild because the static generator does not clean old output files. Final production commands and results:
+
+```text
+python src/generator.py
+OK: 59 posts, 5 sections -> ...\public
+
+rg -n "sample/|今日新增 842 星|今日新增 615 星|今日新增 488 星" content/opensource
+no matches
+
+rg -n "sample/" public
+no matches
+```
+
+The resulting `public/opensource/` contains only `index.html`, which verifies that the section shell builds with no published digest.
+
+## Verification-driven fixes retained from the harness run
+
+1. Inline favicon declaration prevents the browser's default `/favicon.ico` 404.
+2. Navigation wraps below 720px, removing its internal horizontal scroll and clipped links.
+
+## Release conclusion
+
+- UI harness: PASS
+- Production shell build and fixture-exclusion gate: PASS
+- Real Open Source Radar data and outbound-link E2E: PENDING Task 9 Actions generation and a new production E2E run
