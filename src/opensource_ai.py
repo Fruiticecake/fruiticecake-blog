@@ -253,8 +253,9 @@ _SPACED_DOMAIN_PATTERN = re.compile(
     r"(?:com|net|org|io|dev|ai|app|co|cn|xyz|invalid|localhost|example)\b",
     re.I,
 )
+_WINDOWS_PATH_PATTERN = re.compile(r"\b[a-z]:[\\/]\S+", re.I)
 _ACTION_PATTERN = re.compile(
-    r"\b(?:run|download|install|execute|invoke|visit|click|copy|paste)\b|\bopen\b(?!-)"
+    r"\b(?:run|download|install|execute|invoke|visit|click|copy|paste)\b"
     r"|运行|下载|安装|执行|调用|打开|访问|点击|复制|粘贴",
     re.I,
 )
@@ -280,6 +281,7 @@ def _contains_unsafe_model_text(value: str) -> bool:
     if any(unicodedata.category(character) in {"Cc", "Cf"} for character in value):
         return True
     normalized = unicodedata.normalize("NFKC", value)
+    normalized = re.sub(r"\bslash commands\b", "slash-commands", normalized, flags=re.I)
     for _ in range(8):
         decoded = unquote(normalized)
         if decoded == normalized:
@@ -303,7 +305,12 @@ def _contains_unsafe_model_text(value: str) -> bool:
     probe = re.sub(r"\s+(?:slash|斜杠)\s+", "/", probe, flags=re.I)
     probe = re.sub(r"\s+(?:backslash|反斜杠)\s+", r"\\", probe, flags=re.I)
     probe_folded = probe.casefold()
-    if _DOMAIN_PATTERN.search(probe_folded) or _SPACED_DOMAIN_PATTERN.search(probe_folded) or "/" in probe or "\\" in probe:
+    if (
+        _DOMAIN_PATTERN.search(probe_folded)
+        or _SPACED_DOMAIN_PATTERN.search(probe_folded)
+        or _WINDOWS_PATH_PATTERN.search(probe)
+        or "\\" in probe
+    ):
         return True
     if _MARKDOWN_PATTERN.search(folded):
         return True

@@ -232,6 +232,35 @@ class OpenSourceAiTests(unittest.TestCase):
         self.assertEqual(brief.approach, data["approach"])
         self.assertEqual(brief.caveats, data["caveats"])
 
+    def test_validation_allows_descriptive_slash_commands_prose(self):
+        data = load_json("model_response.json")
+        data["approach"] = (
+            "Provides engineering workflows with eight slash commands that map to "
+            "planning, building, testing, reviewing, and shipping stages."
+        )
+
+        brief = validate_brief(data, sample_candidate())
+
+        self.assertEqual(brief.approach, data["approach"])
+
+    def test_validation_allows_open_named_project_prose(self):
+        data = load_json("model_response.json")
+        data["headline"] = "Open WebUI: A self-hosted AI platform."
+        data["approach"] = "Open WebUI provides a feature-rich platform for AI workflows."
+
+        brief = validate_brief(data, sample_candidate())
+
+        self.assertEqual(brief.headline, data["headline"])
+        self.assertEqual(brief.approach, data["approach"])
+
+    def test_validation_allows_slash_delimited_technology_names(self):
+        data = load_json("model_response.json")
+        data["differentiator"] = "Offers a straightforward deployment path through pip/Docker options."
+
+        brief = validate_brief(data, sample_candidate())
+
+        self.assertEqual(brief.differentiator, data["differentiator"])
+
     def test_deepseek_response_body_is_bounded_and_token_is_not_in_error(self):
         class OversizedResponse:
             def read(self, size=-1):
