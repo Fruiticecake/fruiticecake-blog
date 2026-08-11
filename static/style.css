@@ -51,6 +51,7 @@ h1,h2,h3,h4{font-family:var(--font-heading);font-weight:600;margin:0}
 
 .sec-badge{font-size:10px;font-weight:700;letter-spacing:.03em;padding:3px 10px;border-radius:999px}
 .sec-badge.sec-aihot{background:var(--accent);color:#fff}
+.sec-badge.sec-opensource{background:var(--radar);color:#fff}
 .sec-badge.sec-ai-chat{background:var(--ink);color:var(--bg)}
 .sec-badge.sec-blog{background:var(--surface-alt);color:var(--ink)}
 .sec-badge.sec-docs{border:1px solid var(--ink-faint);color:var(--ink-muted)}
