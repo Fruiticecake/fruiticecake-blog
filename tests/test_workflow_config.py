@@ -35,6 +35,11 @@ def _extract_named_step_blocks(text):
 
 
 def _assert_workflow_contract(test_case, text):
+    scheduled_crons = re.findall(r"(?m)^\s*- cron:\s*['\"]([^'\"]+)['\"]\s*$", text)
+    test_case.assertIn("0 0 * * *", scheduled_crons)
+    test_case.assertIn("20 2 * * *", scheduled_crons)
+    test_case.assertIn("20 10 * * *", scheduled_crons)
+    test_case.assertNotIn("20 22 * * *", scheduled_crons)
     test_case.assertIn("contents: write", text)
     test_case.assertNotIn("models: read", text)
     test_case.assertRegex(
