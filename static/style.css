@@ -86,7 +86,7 @@ img{max-width:100%}
   font-family:var(--font-brand);font-style:italic;font-weight:600;
   font-size:clamp(26px,3.4vw,34px);color:var(--ink);letter-spacing:-.02em;display:inline-block
 }
-.site-header .brand:hover{color:var(--accent)}
+.site-header .brand:hover{color:var(--accent-ink)}
 .site-header .tagline{color:var(--ink-muted);font-size:13.5px;margin-top:8px;max-width:44ch}
 /* 首页的 hero 卡片里已经完整写了一遍标题与副标题，页眉不再重复 */
 body[data-page="home"] .site-header .tagline{display:none}
@@ -186,6 +186,8 @@ body[data-page="home"] .site-header .tagline{display:none}
   transition:transform var(--dur) var(--ease),box-shadow var(--dur) var(--ease)
 }
 .home-feature:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);color:var(--ink)}
+.home-feature h2{transition:color var(--dur) var(--ease)}
+.home-feature:hover h2{color:var(--accent-ink)}
 .home-feature h2{font-size:clamp(20px,2.7vw,27px);line-height:1.28}
 .home-feature p{color:var(--ink-muted);font-size:13.5px;margin:0}
 .home-feature-date{font-size:11.5px;color:var(--ink-faint);margin-top:2px}
@@ -197,7 +199,7 @@ body[data-page="home"] .site-header .tagline{display:none}
 .home-secondary-item{display:flex;flex-direction:column;gap:7px;padding:15px 0;
   color:var(--ink);border-bottom:1px solid var(--line)}
 .home-secondary-item:last-child{border-bottom:none}
-.home-secondary-item:hover{color:var(--accent)}
+.home-secondary-item:hover{color:var(--accent-ink)}
 .home-secondary-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .home-secondary-title{font-size:13.5px;font-weight:600;line-height:1.5}
 .home-secondary-date{font-size:11px;color:var(--ink-faint);white-space:nowrap}
@@ -211,6 +213,8 @@ body[data-page="home"] .site-header .tagline{display:none}
   transition:transform var(--dur) var(--ease),box-shadow var(--dur) var(--ease)
 }
 .sec-card:hover{transform:translateY(-3px);box-shadow:var(--shadow);color:var(--ink)}
+.sec-card h3{transition:color var(--dur) var(--ease)}
+.sec-card:hover h3{color:var(--accent-ink)}
 .sec-card h3{font-size:16.5px}
 .sec-card p{color:var(--ink-muted);font-size:12.5px;flex:1;margin:0}
 .sec-card .count{font-size:11px;color:var(--ink-faint);font-weight:700}
@@ -272,7 +276,7 @@ a.cal-cell.is-today:hover{background:var(--accent);border-color:var(--accent);co
 .post-item:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
 .post-item h3{font-size:16.5px;margin:7px 0}
 .post-item h3 a{color:var(--ink)}
-.post-item h3 a:hover{color:var(--accent)}
+.post-item h3 a:hover{color:var(--accent-ink)}
 .post-item .excerpt{color:var(--ink-muted);font-size:13.5px;margin:0}
 .meta{font-size:11.5px;color:var(--ink-faint);display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 
@@ -298,7 +302,12 @@ a.sec-badge.sec-blog:hover,a.sec-badge.sec-docs:hover{color:var(--ink)}
   border-radius:var(--r-lg);padding:20px;min-height:168px;color:inherit;box-shadow:var(--shadow-sm);
   transition:transform var(--dur) var(--ease),box-shadow var(--dur) var(--ease)
 }
-.aihot-card:hover{transform:translateY(-3px);box-shadow:var(--shadow);color:inherit}
+.aihot-card:hover{transform:translateY(-3px);box-shadow:var(--shadow);
+  border-color:rgba(193,112,74,.4);color:inherit}
+.aihot-card h3{transition:color var(--dur) var(--ease)}
+.aihot-card:hover h3{color:var(--accent-ink)}
+.aihot-card-cat{transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+.aihot-card:hover .aihot-card-cat{background:var(--accent-ink);color:#fff}
 .aihot-card-cat{font-size:10px;font-weight:700;color:var(--accent-ink);align-self:flex-start;
   background:var(--accent-wash);border-radius:var(--r-pill);padding:3px 10px}
 .aihot-card h3{font-size:15px;line-height:1.45;margin:0}
@@ -312,7 +321,10 @@ a.sec-badge.sec-blog:hover,a.sec-badge.sec-docs:hover{color:var(--ink)}
   padding:16px 20px;color:var(--ink);box-shadow:var(--shadow-xs);
   transition:transform var(--dur) var(--ease),box-shadow var(--dur) var(--ease),border-color var(--dur) var(--ease)
 }
-.aihot-list-row:hover{transform:translateY(-2px);box-shadow:var(--shadow-sm);color:var(--ink)}
+.aihot-list-row:hover{transform:translateY(-2px);box-shadow:var(--shadow-sm);
+  border-color:rgba(193,112,74,.4);color:var(--ink)}
+.aihot-list-date{transition:color var(--dur) var(--ease)}
+.aihot-list-row:hover .aihot-list-date{color:var(--accent-ink)}
 .aihot-list-date{font-size:14px;font-weight:700}
 .aihot-list-headline{font-size:12.5px;color:var(--ink-muted);margin-top:3px}
 .aihot-list-count{font-size:11px;color:var(--accent-ink);font-weight:700;white-space:nowrap}
@@ -334,6 +346,8 @@ a.sec-badge.sec-blog:hover,a.sec-badge.sec-docs:hover{color:var(--ink)}
   box-shadow:var(--shadow-xs);transition:transform var(--dur) var(--ease),box-shadow var(--dur) var(--ease)
 }
 .chat-inbox-row:hover{transform:translateY(-2px);box-shadow:var(--shadow-sm);color:var(--ink)}
+.chat-inbox-title{transition:color var(--dur) var(--ease)}
+.chat-inbox-row:hover .chat-inbox-title{color:var(--accent-ink)}
 .chat-avatar{width:40px;height:40px;border-radius:50%;background:var(--ink);color:#fff;
   display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
 .chat-inbox-body{flex:1;min-width:0}
@@ -350,6 +364,8 @@ a.sec-badge.sec-blog:hover,a.sec-badge.sec-docs:hover{color:var(--ink)}
   box-shadow:var(--shadow);transition:transform var(--dur) var(--ease),box-shadow var(--dur) var(--ease)
 }
 .blog-feature:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);color:var(--ink)}
+.blog-feature-text h2{transition:color var(--dur) var(--ease)}
+.blog-feature:hover .blog-feature-text h2{color:var(--accent-ink)}
 .blog-feature-text{padding:clamp(22px,3vw,32px);display:flex;flex-direction:column;justify-content:center;gap:10px}
 .blog-feature-tag{font-size:10px;font-weight:700;color:var(--accent-ink);letter-spacing:.06em;text-transform:uppercase}
 .blog-feature-text h2{font-size:clamp(19px,2.6vw,25px)}
@@ -361,6 +377,8 @@ a.sec-badge.sec-blog:hover,a.sec-badge.sec-docs:hover{color:var(--ink)}
   padding:18px 20px;color:var(--ink);box-shadow:var(--shadow-xs);
   transition:transform var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
 .blog-grid-item:hover{transform:translateY(-2px);box-shadow:var(--shadow-sm);color:var(--ink)}
+.blog-grid-title{transition:color var(--dur) var(--ease)}
+.blog-grid-item:hover .blog-grid-title{color:var(--accent-ink)}
 .blog-grid-date{font-size:11px;color:var(--ink-faint)}
 .blog-grid-title{font-size:14.5px;font-weight:700;margin-top:6px}
 
@@ -389,7 +407,15 @@ a.sec-badge.sec-blog:hover,a.sec-badge.sec-docs:hover{color:var(--ink)}
 .post-body p{margin:14px 0}
 .post-body ul,.post-body ol{margin:14px 0 14px 22px}
 .post-body li{margin:6px 0}
-.post-body a{text-decoration:underline;text-underline-offset:2px}
+.post-body a{text-decoration:none}
+/* 只有正文段落里的行内链接才带下划线；.aihot-card 这类「整块可点」的卡片链接
+   本身就是 <a>，加了下划线会连标题和正文一起划掉。 */
+.post-body p a,.post-body li a,.post-body td a,.post-body blockquote a{
+  text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;
+  text-decoration-color:rgba(163,84,47,.42);
+  transition:color var(--dur) var(--ease),text-decoration-color var(--dur) var(--ease)}
+.post-body p a:hover,.post-body li a:hover,.post-body td a:hover,.post-body blockquote a:hover{
+  color:var(--accent-dark);text-decoration-color:currentColor}
 .post-body code{background:var(--surface-soft);border-radius:6px;padding:2px 6px;font-size:13px;font-family:var(--font-mono)}
 .post-body pre{position:relative;background:var(--ink);color:#f3ead9;border-radius:var(--r-md);
   padding:20px 18px;overflow-x:auto;margin:18px 0;font-size:13px}
@@ -437,7 +463,7 @@ a.sec-badge.sec-blog:hover,a.sec-badge.sec-docs:hover{color:var(--ink)}
 .archive-month-label{font-size:14px;font-weight:700;color:var(--accent-ink);margin-bottom:12px}
 .archive-timeline{border-left:2px solid var(--line);padding-left:18px;display:flex;flex-direction:column;gap:13px}
 .archive-row{position:relative;color:var(--ink);display:flex;justify-content:space-between;gap:12px}
-.archive-row:hover{color:var(--accent)}
+.archive-row:hover{color:var(--accent-ink)}
 .archive-dot{position:absolute;left:-23px;top:7px;width:8px;height:8px;border-radius:50%;background:var(--accent)}
 .archive-title{font-size:14px;font-weight:600}
 .archive-date{font-size:11px;color:var(--ink-faint);white-space:nowrap;font-variant-numeric:tabular-nums}
@@ -503,6 +529,7 @@ a.sec-badge.sec-blog:hover,a.sec-badge.sec-docs:hover{color:var(--ink)}
   margin-bottom:12px;color:var(--radar);font-family:var(--font-num);font-size:26px;font-weight:800;letter-spacing:-.04em}
 .opensource-history .aihot-list{background:transparent}
 .opensource-history .aihot-list-row:hover{border-color:rgba(79,117,100,.4)}
+.opensource-history .aihot-list-row:hover .aihot-list-date{color:var(--radar)}
 .opensource-history .aihot-list-headline{color:var(--ink-soft)}
 .opensource-history .aihot-list-count{color:var(--radar)}
 
