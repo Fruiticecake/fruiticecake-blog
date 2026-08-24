@@ -59,6 +59,25 @@ def tab_links_html(cfg, active=""):
         for slug, url, _name, short in _destinations(cfg))
 
 
+# ---------------- Vercel Web Analytics ----------------
+def analytics_html(cfg):
+    """Vercel Web Analytics 埋点；config.json 里 analytics_script 留空即关闭。
+
+    路径必须先在 Vercel 后台 Analytics → Enable 之后才存在，否则脚本 404。
+    后台会额外给一个项目专属路径（更抗广告拦截），想用就把它填进配置。
+    只接受站内绝对路径，避免配置被改成任意第三方脚本源。
+    """
+    src = str(cfg["site"].get("analytics_script") or "").strip()
+    if not src:
+        return ""
+    if not src.startswith("/") or src.startswith("//"):
+        raise ValueError(f"analytics_script 必须是站内绝对路径（以 / 开头）：{src}")
+    return (
+        '<script>window.va=window.va||function(){'
+        '(window.vaq=window.vaq||[]).push(arguments);};</script>\n'
+        f'<script defer src="{util.html_escape(src)}"></script>')
+
+
 # ---------------- 日历 ----------------
 def _bj_date(post):
     date = post.date

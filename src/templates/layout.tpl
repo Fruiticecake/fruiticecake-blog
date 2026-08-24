@@ -70,5 +70,6 @@ $content
   });
 })();
 </script>
+$analytics_html
 </body>
 </html>

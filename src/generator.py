@@ -176,6 +176,7 @@ def render_layout(cfg, title, description, content, active=""):
         brand=util.html_escape(cfg["site"]["title"]),
         tagline=util.html_escape(cfg["site"].get("subtitle", "")),
         page=util.html_escape(active),
+        analytics_html=ui.analytics_html(cfg),
         nav_links=ui.nav_links_html(cfg, active),
         tab_links=ui.tab_links_html(cfg, active),
         home_current=current if active == "home" else "",
