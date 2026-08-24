@@ -2,26 +2,32 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>$title</title>
 <meta name="description" content="$description">
 <meta name="author" content="Fruiticecake">
-<link rel="icon" href="data:,">
+<meta name="theme-color" content="#efe4d1">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="/style.css">
 <link rel="alternate" type="application/rss+xml" title="$brand" href="/feed.xml">
 </head>
-<body>
+<body data-page="$page">
+<div class="app-bg" aria-hidden="true"></div>
 <header class="site-header">
   <div class="wrap">
     <a class="brand" href="/">Fruiticecake</a>
     <div class="tagline">$tagline</div>
   </div>
 </header>
-<nav class="site-nav">
+<nav class="site-nav" aria-label="主导航">
   <div class="wrap">
-    <a href="/">首页</a>
-    $nav_links
-    <a href="/archive/">归档</a>
+    <div class="nav-pill">
+      <a href="/"$home_current>首页</a>
+      $nav_links
+      <a href="/archive/"$archive_current>归档</a>
+    </div>
   </div>
 </nav>
 <main class="wrap">
@@ -32,6 +38,7 @@ $content
     <p>© $year Fruiticecake · 静态博客 · <a href="https://github.com/Fruiticecake/fruiticecake-blog" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="/feed.xml">RSS</a></p>
   </div>
 </footer>
+<nav class="tabbar" aria-label="底部导航">$tab_links</nav>
 <button class="back-to-top" id="backToTop" aria-label="回到顶部" title="回到顶部">↑</button>
 
 <script type="module">
@@ -43,10 +50,11 @@ $content
   var btn = document.getElementById('backToTop');
   window.addEventListener('scroll', function(){
     btn.classList.toggle('show', window.scrollY > 480);
-  });
+  }, { passive: true });
   btn.addEventListener('click', function(){ window.scrollTo({ top: 0, behavior: 'smooth' }); });
 
   document.querySelectorAll('.post-body pre').forEach(function(pre){
+    if (pre.classList.contains('mermaid')) return;
     var btn2 = document.createElement('button');
     btn2.className = 'copy-btn';
     btn2.type = 'button';
@@ -64,4 +72,3 @@ $content
 </script>
 </body>
 </html>
-

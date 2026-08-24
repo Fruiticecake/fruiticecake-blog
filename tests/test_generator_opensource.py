@@ -61,8 +61,9 @@ class OpenSourceGeneratorTests(unittest.TestCase):
         section = type("Section", (), {"posts": [latest, historical]})()
 
         page = generator.render_opensource_section(section)
+        history = page[page.index('class="opensource-history"'):]
 
-        self.assertNotIn("Repeated issue title", page)
+        self.assertNotIn("Repeated issue title", history)
         self.assertIn("R&amp;D &lt;tools&gt;", page)
         self.assertNotIn("R&amp;amp;D", page)
         headline = page.split('class="aihot-list-headline">', 1)[1].split("</div>", 1)[0]
@@ -87,7 +88,8 @@ class OpenSourceGeneratorTests(unittest.TestCase):
 
             homepage = (public / "index.html").read_text(encoding="utf-8")
             self.assertIn('href="/opensource/"', homepage)
-            self.assertIn('<link rel="icon" href="data:,">', homepage)
+            self.assertIn('<link rel="icon" href="/favicon.svg"', homepage)
+            self.assertTrue((public / "favicon.svg").exists())
             section = (public / "opensource" / "index.html").read_text(encoding="utf-8")
             self.assertIn("今日风向", section)
             self.assertIn("GitHub Trending 第 1 名", section)

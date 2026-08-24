@@ -21,6 +21,7 @@ import util
 import markdown
 import models
 import chat
+import ui
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src")
@@ -165,35 +166,50 @@ def tags_html(post):
     return f'<div class="tags">{items}</div>'
 
 
-def render_layout(cfg, title, description, content):
+def render_layout(cfg, title, description, content, active=""):
+    """active 传当前页面所属的板块 slug（首页传 home，归档传 archive），
+    顶部药丸导航与移动端底部标签栏据此高亮当前项。"""
     t = load_template("layout.tpl")
-    nav_links = "".join(
-        f'<a href="/{s["slug"]}/">{util.html_escape(s["name"])}</a>'
-        for s in cfg["sections"])
+    current = ' aria-current="page"'
     return t.substitute(
         title=title, description=description,
         brand=util.html_escape(cfg["site"]["title"]),
         tagline=util.html_escape(cfg["site"].get("subtitle", "")),
-        nav_links=nav_links, content=content,
+        page=util.html_escape(active),
+        nav_links=ui.nav_links_html(cfg, active),
+        tab_links=ui.tab_links_html(cfg, active),
+        home_current=current if active == "home" else "",
+        archive_current=current if active == "archive" else "",
+        content=content,
         year=datetime.datetime.now(util.BJ).year,
         author=util.html_escape(cfg["site"].get("author", "")))
 
 
 # ---------------- 板块专属列表渲染 ----------------
 def render_aihot_section(sec):
-    days = sec.posts[:14]
-    streak_html = "".join(
-        f'<div class="streak-day{" active" if i == 0 else ""}">'
-        f'<div class="streak-wd">{util.weekday_cn(p.date)}</div>'
-        f'<div class="streak-num">{p.date.day}</div></div>'
-        for i, p in enumerate(days))
+    if not sec.posts:
+        return '<p class="empty-note">暂无内容。</p>'
+    latest = sec.posts[0]
+    stat_card = (
+        '<div class="stat-card">'
+        + ui.stat_html("已归档日报", len(sec.posts), "期")
+        + f'<p class="stat-sub">最新一期 {latest.date_human} · '
+          f'{util.html_escape(latest.summary)}</p>'
+        '<div class="stat-chips">'
+        f'<span class="stat-chip">连续更新 {ui.streak_days(sec.posts)} 天</span>'
+        f'<span class="stat-chip">本月 {ui.month_count(sec.posts)} 期</span>'
+        '</div></div>')
     rows = "".join(
         f'<a class="aihot-list-row" href="{p.url}">'
         f'<div><div class="aihot-list-date">{p.date_human}</div>'
         f'<div class="aihot-list-headline">{util.html_escape(p.summary)}</div></div>'
         f'<span class="aihot-list-count">{util.html_escape(extract_count(p.summary))} 条 →</span></a>'
         for p in sec.posts)
-    return f'<div class="streak-row">{streak_html}</div><div class="aihot-list">{rows}</div>'
+    return (
+        f'<div class="daily-top">{stat_card}{ui.calendar_html(sec.posts, "点开当天日报")}</div>'
+        '<section class="block"><h2>历史日报'
+        '<a class="more-link" href="/archive/">全部归档 →</a></h2>'
+        f'<div class="aihot-list">{rows}</div></section>')
 
 
 def render_chat_section(sec):
@@ -254,26 +270,31 @@ def render_opensource_section(sec):
     project_count = latest.meta.get("project_count")
     count_html = (f'<span class="opensource-project-count">{util.html_escape(str(project_count))} 个项目</span>'
                   if project_count is not None else "")
-    rail_html = "".join(
-        f'<a class="streak-day{" active" if index == 0 else ""}" href="{post.url}">'
-        f'<div class="streak-wd">{util.weekday_cn(post.date)}</div>'
-        f'<div class="streak-num">{post.date.day}</div></a>'
-        for index, post in enumerate(sec.posts[:14]))
     history_html = "".join(
         f'<a class="aihot-list-row" href="{post.url}">'
         f'<div><div class="aihot-list-date">{post.date_human}</div>'
         f'<div class="aihot-list-headline">{util.html_escape(_opensource_history_summary(post))}</div></div>'
         f'<span class="aihot-list-count">查看日报 →</span></a>'
         for post in history)
+    total_projects = sum(int(post.meta.get("project_count") or 0) for post in sec.posts)
+    stat_card = (
+        '<div class="stat-card">'
+        + ui.stat_html("已发布日报", len(sec.posts), "期")
+        + f'<p class="stat-sub">累计梳理 {total_projects} 个开源项目 · '
+          f'最新一期 {latest.date_human}</p>'
+        '<div class="stat-chips">'
+        f'<span class="stat-chip is-radar">连续更新 {ui.streak_days(sec.posts)} 天</span>'
+        f'<span class="stat-chip is-radar">本月 {ui.month_count(sec.posts)} 期</span>'
+        '</div></div>')
     return (
         f'<a class="opensource-lead" href="{latest.url}">'
         f'<div><div class="opensource-lead-kicker">最新一期 {count_html}</div>'
         f'<h2>{util.html_escape(latest.title)}</h2>'
         f'<p>{util.html_escape(latest.summary)}</p></div>'
         f'<span>阅读日报 →</span></a>'
+        f'<div class="daily-top">{stat_card}'
+        f'{ui.calendar_html(sec.posts, "点开当天日报", "is-radar")}</div>'
         f'<section class="opensource-trends"><h2>今日风向</h2><ol>{trend_html}</ol></section>'
-        f'<section class="opensource-rail"><h2>14 日轨迹</h2>'
-        f'<div class="streak-row">{rail_html}</div></section>'
         f'<section class="opensource-history"><h2>历史日报</h2>'
         f'<div class="aihot-list">{history_html}</div></section>')
 
@@ -325,13 +346,23 @@ def build_home(cfg, sections, all_posts):
         f'<div class="home-secondary-title">{util.html_escape(p.title)}</div></a>'
         for p in secondary)
 
+    daily_posts = [p for p in all_posts if p.section in ("aihot", "opensource")]
+    stats_html = (
+        '<div class="stat-row">'
+        + ui.stat_html("累计文章", len(all_posts), "篇")
+        + ui.stat_html("板块", len(cfg["sections"]), "个")
+        + ui.stat_html("连续更新", ui.streak_days(daily_posts), "天")
+        + '</div>')
+
     content = t.substitute(
         site_title=util.html_escape(cfg["site"]["title"]),
         site_subtitle=util.html_escape(cfg["site"].get("subtitle", "")),
         nav_slim=nav_slim, chat_teaser_block=chat_teaser_block,
+        stats_html=stats_html,
         feature_html=feature_html, secondary_html=secondary_html,
         section_cards=section_cards_html(sections, cfg))
-    return render_layout(cfg, cfg["site"]["title"], cfg["site"].get("description", ""), content)
+    return render_layout(cfg, cfg["site"]["title"], cfg["site"].get("description", ""),
+                         content, active="home")
 
 
 def build_section(cfg, sections, sd):
@@ -345,7 +376,7 @@ def build_section(cfg, sections, sd):
         description=util.html_escape(sec.description),
         posts=body)
     return render_layout(cfg, f"{sec.name} · {cfg['site']['title']}",
-                         sec.description, content)
+                         sec.description, content, active=sd["slug"])
 
 
 def build_post(cfg, sections, post):
@@ -368,7 +399,7 @@ def build_post(cfg, sections, post):
         reading_time=post.reading_time, model_html=model_html,
         tags_html=tags_html(post), source_html=source_html, body=post.body_html)
     return render_layout(cfg, f"{post.title} · {cfg['site']['title']}",
-                         post.summary, content)
+                         post.summary, content, active=post.section)
 
 
 def build_archive(cfg, sections, all_posts):
@@ -394,7 +425,8 @@ def build_archive(cfg, sections, all_posts):
             f'<div class="archive-timeline">{rows}</div></div>')
     t = load_template("archive.tpl")
     content = t.substitute(total=len(all_posts), posts=months_html)
-    return render_layout(cfg, f"归档 · {cfg['site']['title']}", "全部文章归档", content)
+    return render_layout(cfg, f"归档 · {cfg['site']['title']}", "全部文章归档",
+                         content, active="archive")
 
 
 def build_tags(cfg, sections, all_posts):
@@ -409,7 +441,8 @@ def build_tags(cfg, sections, all_posts):
         ratio = count / max_count
         size = 12 + 14 * ratio
         weight = 700 if ratio > 0.6 else 500
-        opacity = round(45 + 40 * ratio)
+        # 下限 65%：更低的透明度在白卡片上对比度不足 4.5:1
+        opacity = round(65 + 35 * ratio)
         return (f'font-size:{size:.1f}px;font-weight:{weight};'
                 f'color:color-mix(in srgb, var(--ink) {opacity}%, transparent)')
 
@@ -419,7 +452,8 @@ def build_tags(cfg, sections, all_posts):
         f'{util.html_escape(t)} <span class="c">({len(ps)})</span></a>'
         for t, ps in sorted(tag_map.items(), key=lambda kv: -len(kv[1])))
     idx = idx_t.substitute(total=len(tag_map), tags=tags_html_str)
-    idx_page = render_layout(cfg, f"标签 · {cfg['site']['title']}", "按标签浏览", idx)
+    idx_page = render_layout(cfg, f"标签 · {cfg['site']['title']}", "按标签浏览",
+                             idx, active="archive")
     pages = {}
     tt = load_template("tags.tpl")
     for t, ps in tag_map.items():
@@ -427,7 +461,7 @@ def build_tags(cfg, sections, all_posts):
             tag=util.html_escape(t), count=len(ps),
             posts="\n".join(post_item_html(p, nmap) for p in ps))
         pages[util.slugify(t)] = render_layout(
-            cfg, f"{t} · {cfg['site']['title']}", f"标签 {t}", c)
+            cfg, f"{t} · {cfg['site']['title']}", f"标签 {t}", c, active="archive")
     return idx_page, pages
 
 
@@ -493,8 +527,10 @@ def main():
     for slug, page in tag_pages.items():
         write_file(os.path.join(PUBLIC, "tags", slug + ".html"), page)
     write_file(os.path.join(PUBLIC, "feed.xml"), build_feed(cfg, all_posts))
-    shutil.copyfile(os.path.join(STATIC, "style.css"),
-                    os.path.join(PUBLIC, "style.css"))
+    for filename in os.listdir(STATIC):
+        source = os.path.join(STATIC, filename)
+        if os.path.isfile(source):
+            shutil.copyfile(source, os.path.join(PUBLIC, filename))
     print(f"OK: {len(all_posts)} posts, {len(cfg['sections'])} sections -> {PUBLIC}")
 
 

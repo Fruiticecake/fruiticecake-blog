@@ -64,14 +64,15 @@ def build_fixture_page() -> str:
 
 
 class OpenSourceMarkupTests(unittest.TestCase):
-    def test_mobile_navigation_wraps_without_horizontal_scrolling(self):
+    def test_mobile_navigation_avoids_horizontal_scrolling(self):
+        """移动端不再横向滚动顶部导航，而是换成固定底部标签栏。"""
         css = CSS_PATH.read_text(encoding="utf-8")
-        mobile_css = css[css.rfind("@media(max-width:720px)") :]
+        mobile_css = css[css.find("@media(max-width:760px)") :]
 
-        self.assertRegex(
-            mobile_css,
-            r"\.site-nav \.wrap\{[^}]*flex-wrap:wrap[^}]*overflow-x:visible",
-        )
+        self.assertRegex(mobile_css, r"\.site-nav\{display:none\}")
+        self.assertRegex(mobile_css, r"\.tabbar\{[^}]*display:flex[^}]*position:fixed")
+        # 标签项等分宽度，不靠滚动容纳
+        self.assertIn("flex:1", css_declarations(".tabbar a"))
 
     def test_repository_cards_have_safe_external_links_and_labels(self):
         page = build_fixture_page()
@@ -112,23 +113,22 @@ class OpenSourceMarkupTests(unittest.TestCase):
 
         self.assertIn("Repeated after 1200 stars today.", page)
 
-    def test_clipped_radar_containers_use_internal_focus_indicators(self):
-        for selector in (
-            ".opensource-rail .streak-day:focus-visible",
-            ".opensource-history .aihot-list-row:focus-visible",
-        ):
+    def test_clipped_containers_use_internal_focus_indicators(self):
+        """overflow:hidden 的容器会裁掉外描边，里面的链接要用内阴影当焦点环。"""
+        for selector in (".docs-index-row:focus-visible",):
             with self.subTest(selector=selector):
                 declarations = css_declarations(selector)
                 self.assertIn("box-shadow:inset", declarations)
-                self.assertNotIn("outline-offset:4px", declarations)
+                self.assertIn("outline:none", declarations)
 
     def test_radar_body_copy_and_small_labels_use_opaque_ink(self):
+        """小字号文案只能用不透明的墨色 token，半透明的 muted/faint 对比度不够。"""
+        opaque_tokens = ("color:var(--ink)", "color:var(--ink-soft)")
         selectors = (
             ".opensource-trends h2",
             ".opensource-trends li",
-            ".opensource-rail .streak-wd",
+            ".cal-wd",
             ".opensource-history .aihot-list-headline",
-            ".opensource-history .aihot-list-count",
             ".radar-feature p",
             ".radar-feature p strong",
             ".radar-quick p",
@@ -137,7 +137,21 @@ class OpenSourceMarkupTests(unittest.TestCase):
         )
         for selector in selectors:
             with self.subTest(selector=selector):
-                self.assertIn("color:var(--ink)", css_declarations(selector))
+                declarations = css_declarations(selector)
+                self.assertTrue(
+                    any(token in declarations for token in opaque_tokens),
+                    f"{selector} 应使用不透明墨色，实际为：{declarations}",
+                )
+
+    def test_muted_ink_tokens_are_opaque(self):
+        """--ink-muted / --ink-faint 必须是实色，半透明会随背景丢失对比度。"""
+        css = CSS_PATH.read_text(encoding="utf-8")
+        for token in ("--ink-muted", "--ink-faint"):
+            with self.subTest(token=token):
+                match = re.search(rf"{token}\s*:\s*([^;]+);", css)
+                self.assertIsNotNone(match, f"缺少 {token}")
+                value = match.group(1).strip()
+                self.assertTrue(value.startswith("#"), f"{token} 应为实色，实际为 {value}")
 
 
 if __name__ == "__main__":

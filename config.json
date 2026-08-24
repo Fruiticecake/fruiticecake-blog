@@ -13,6 +13,7 @@
     {
       "slug": "aihot",
       "name": "AI HOT 日报",
+      "tab": "AI HOT",
       "description": "每日 AI 动态，自动归档",
       "auto": true,
       "dot": "#c1704a"
@@ -20,24 +21,28 @@
     {
       "slug": "ai-chat",
       "name": "AI 对话",
+      "tab": "对话",
       "description": "和 AI 的一些值得记录的小对话",
-      "dot": "#3a2e26"
+      "dot": "#241d18"
     },
     {
       "slug": "blog",
       "name": "博客",
+      "tab": "博客",
       "description": "随笔、思考与日常",
       "dot": "#8a7355"
     },
     {
       "slug": "docs",
       "name": "技术文档",
+      "tab": "文档",
       "description": "技术笔记、教程与参考资料",
       "dot": "#a89a80"
     },
     {
       "slug": "opensource",
       "name": "开源雷达",
+      "tab": "开源",
       "description": "每天 5 分钟，读懂正在流行的开源项目",
       "auto": true,
       "dot": "#4f7564"
