@@ -50,6 +50,8 @@ jobs:
           fi
           exit 0
       - name: Generate open source radar
+        # Paused to stop model token usage; existing published digests stay online.
+        if: ${{ false }}
         id: radar
         continue-on-error: true
         env:

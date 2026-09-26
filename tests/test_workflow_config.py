@@ -90,7 +90,7 @@ def _assert_workflow_contract(test_case, text):
     )
     run_block = radar.split("        run: |", 1)[1]
     test_case.assertNotIn("${{ inputs.", run_block)
-    test_case.assertNotRegex(radar, r"(?m)^\s+if\s*:")
+    test_case.assertRegex(radar, r"(?m)^        if: \$\{\{ false \}\}\s*$")
     for collector in (aihot, radar):
         test_case.assertRegex(collector, r"(?m)^        continue-on-error: true\s*$")
     report = blocks["Report collection failures"]
