@@ -254,11 +254,6 @@ _SPACED_DOMAIN_PATTERN = re.compile(
     re.I,
 )
 _WINDOWS_PATH_PATTERN = re.compile(r"\b[a-z]:[\\/]\S+", re.I)
-_ACTION_PATTERN = re.compile(
-    r"\b(?:run|download|install|execute|invoke|visit|click|copy|paste)\b"
-    r"|运行|下载|安装|执行|调用|打开|访问|点击|复制|粘贴",
-    re.I,
-)
 _PRIVILEGE_PATTERN = re.compile(
     r"\b(?:sudo|administrator|administrative|admin|root|superuser|privilege|privileged|elevated)\b"
     r"|管理员|管理权限|提权|根用户|超级用户|特权",
@@ -326,5 +321,7 @@ def _contains_unsafe_model_text(value: str) -> bool:
         return True
     return any(
         pattern.search(folded)
-        for pattern in (_ACTION_PATTERN, _PRIVILEGE_PATTERN, _SCRIPT_PATTERN)
+        # Capability descriptions routinely mention running, installing, or calling
+        # tools. Reject concrete unsafe syntax/destinations above, not these verbs.
+        for pattern in (_PRIVILEGE_PATTERN, _SCRIPT_PATTERN)
     )

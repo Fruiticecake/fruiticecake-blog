@@ -9,6 +9,7 @@ EXPECTED_PIPELINE = [
     "Run tests",
     "Generate site",
     "Commit & push",
+    "Report collection failures",
 ]
 GITHUB_TOKEN_ENV = "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}"
 DEEPSEEK_TOKEN_ENV = "DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}"
@@ -90,7 +91,13 @@ def _assert_workflow_contract(test_case, text):
     run_block = radar.split("        run: |", 1)[1]
     test_case.assertNotIn("${{ inputs.", run_block)
     test_case.assertNotRegex(radar, r"(?m)^\s+if\s*:")
-    test_case.assertNotRegex(radar, r"(?m)^\s+continue-on-error\s*:")
+    for collector in (aihot, radar):
+        test_case.assertRegex(collector, r"(?m)^        continue-on-error: true\s*$")
+    report = blocks["Report collection failures"]
+    test_case.assertIn("steps.aihot.outcome == 'failure'", report)
+    test_case.assertIn("steps.radar.outcome == 'failure'", report)
+    test_case.assertIn("!cancelled()", report)
+    test_case.assertIn("exit 1", report)
 
     test_case.assertEqual(text.count(GITHUB_TOKEN_ENV), 1)
     test_case.assertEqual(text.count(DEEPSEEK_TOKEN_ENV), 1)

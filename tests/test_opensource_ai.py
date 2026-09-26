@@ -57,6 +57,17 @@ def completion(data):
 
 
 class OpenSourceAiTests(unittest.TestCase):
+    def test_descriptive_capabilities_are_not_executable_instructions(self):
+        for prose in (
+            "支持工具调用和工作流执行，降低本地运行 AI 应用的复杂度。",
+            "适合需要管理数据访问、文件下载和插件安装的开发团队。",
+            "Teams run agents that invoke tools and download documents.",
+        ):
+            with self.subTest(prose=prose):
+                data = load_json("model_response.json")
+                data["problem"] = prose
+                self.assertEqual(validate_brief(data, sample_candidate()).problem, prose)
+
     def test_client_rejects_every_noncanonical_endpoint_without_leaking_token(self):
         invalid_endpoints = (
             "http://api.deepseek.com/chat/completions",

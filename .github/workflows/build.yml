@@ -39,6 +39,7 @@ jobs:
       - name: Fetch AI HOT daily
         if: ${{ inputs['dry-run'] != true }}
         id: aihot
+        continue-on-error: true
         run: |
           set +e
           python3 src/aihot.py
@@ -49,6 +50,8 @@ jobs:
           fi
           exit 0
       - name: Generate open source radar
+        id: radar
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
@@ -82,3 +85,8 @@ jobs:
           git add -A
           git commit -m "build: $(TZ=Asia/Shanghai date +%F)" || echo "no changes"
           git push
+      - name: Report collection failures
+        if: ${{ !cancelled() && (steps.aihot.outcome == 'failure' || steps.radar.outcome == 'failure') }}
+        run: |
+          echo "::error::A daily collector failed. Successfully collected content was allowed to publish; inspect the collector logs."
+          exit 1
