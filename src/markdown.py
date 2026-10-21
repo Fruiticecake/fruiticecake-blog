@@ -163,6 +163,11 @@ def render(md):
     return "\n".join(out)
 
 
+def render_inline(text):
+    """渲染单行行内 Markdown（加粗、斜体、行内代码、链接、图片），结果已转义。"""
+    return _inline(text)
+
+
 def _inline(text):
     text = html.escape(text)
     # Stash inline code so * / _ in code are not styled

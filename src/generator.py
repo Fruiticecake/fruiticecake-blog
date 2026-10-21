@@ -22,6 +22,8 @@ import markdown
 import models
 import chat
 import ui
+import stage
+import stage_page
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src")
@@ -82,6 +84,39 @@ def parse_frontmatter(text):
 
 
 # ---------------- 加载文章 ----------------
+def is_stage(meta):
+    return str(meta.get("design", "")).lower() == "stage"
+
+
+def iter_post_files(sdir):
+    """板块目录里的文章：单文件 xxx.md，或文件夹 xxx/index.md（文件夹里的其他文件是这篇文章的资源）。
+    返回 (index.md 路径, 默认名, 文件夹路径或 None)。没有 index.md 的子目录忽略。"""
+    for fn in sorted(os.listdir(sdir)):
+        path = os.path.join(sdir, fn)
+        if fn.endswith(".md") and os.path.isfile(path):
+            yield path, fn[:-3], None
+        elif os.path.isdir(path) and os.path.isfile(os.path.join(path, "index.md")):
+            yield os.path.join(path, "index.md"), fn, path
+
+
+def render_post_body(sd, path, meta, body):
+    raw_html = str(meta.get("html", "")).lower() in ("true", "1", "yes")
+    is_chat = sd["slug"] == "ai-chat" or str(meta.get("type", "")).lower() == "chat"
+    if is_stage(meta) and (raw_html or is_chat):
+        raise stage.StageError(f"{path}：design: stage 不能和 html: true 或对话格式（type: chat / ai-chat 板块）一起用")
+    if is_chat:
+        return chat.render(body, meta), None
+    if raw_html:
+        return body, None
+    if is_stage(meta):
+        try:
+            rendered = stage.render_body(body)
+        except stage.StageError as e:
+            raise stage.StageError(f"{path}：{e}") from e
+        return rendered.body_html, rendered
+    return markdown.render(body), None
+
+
 def load_posts(cfg):
     sections = {}
     for sd in cfg["sections"]:
@@ -93,22 +128,12 @@ def load_posts(cfg):
         sdir = os.path.join(CONTENT, sd["slug"])
         if not os.path.isdir(sdir):
             continue
-        for fn in sorted(os.listdir(sdir)):
-            if not fn.endswith(".md"):
-                continue
-            path = os.path.join(sdir, fn)
+        for path, name, bundle_dir in iter_post_files(sdir):
             with open(path, encoding="utf-8") as source:
                 text = source.read()
             meta, body = parse_frontmatter(text)
-            raw_html = str(meta.get("html", "")).lower() in ("true", "1", "yes")
-            is_chat = sd["slug"] == "ai-chat" or str(meta.get("type", "")).lower() == "chat"
-            if is_chat:
-                body_html = chat.render(body, meta)
-            elif raw_html:
-                body_html = body
-            else:
-                body_html = markdown.render(body)
-            slug = str(meta.get("slug") or util.slugify(fn[:-3]))
+            body_html, rendered = render_post_body(sd, path, meta, body)
+            slug = str(meta.get("slug") or util.slugify(name))
             date = util.parse_date(meta.get("date") or meta.get("published") or meta.get("created"))
             if date is None:
                 date = datetime.datetime.fromtimestamp(
@@ -118,11 +143,13 @@ def load_posts(cfg):
                 tags = [tags]
             post = models.Post(
                 slug=slug, section=sd["slug"],
-                title=str(meta.get("title", fn[:-3])),
-                date=date, summary=make_summary(body_html, meta),
+                title=str(meta.get("title", name)),
+                # 自动摘要跳过 TL;DR 块的小标签，否则摘要会以「// TL;DR」开头
+                date=date, summary=make_summary(body_html.replace(stage.TLDR_LABEL, ""), meta),
                 tags=list(tags), body_html=body_html, src_path=path,
                 source=str(meta.get("source") or ""),
-                model=str(meta.get("model") or ""), meta=meta)
+                model=str(meta.get("model") or ""), meta=meta,
+                bundle_dir=bundle_dir, stage=rendered)
             sections[sd["slug"]].posts.append(post)
             all_posts.append(post)
     for sec in sections.values():
@@ -381,6 +408,9 @@ def build_section(cfg, sections, sd):
 
 
 def build_post(cfg, sections, post):
+    if is_stage(post.meta):
+        return stage_page.build_stage_post(cfg, sections, post,
+                                           os.path.join(TEMPLATES, "post-stage.tpl"), STATIC)
     t = load_template("post.tpl")
     if post.source:
         source_html = (
@@ -492,7 +522,20 @@ def build_feed(cfg, all_posts, limit=30):
 
 def write_file(path, content):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    open(path, "w", encoding="utf-8").write(content)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+
+def copy_static(src=None, dest=None):
+    """整目录拷贝 static/ 到 public/，含 images/<文章 slug>/ 这类子目录。
+    默认值在调用时取模块变量，测试 patch PUBLIC 后才能生效。"""
+    src, dest = src or STATIC, dest or PUBLIC
+    for name in os.listdir(src):
+        source, target = os.path.join(src, name), os.path.join(dest, name)
+        if os.path.isdir(source):
+            shutil.copytree(source, target, dirs_exist_ok=True)
+        elif os.path.isfile(source):
+            shutil.copyfile(source, target)
 
 
 def reconcile_opensource_pages(posts):
@@ -521,6 +564,7 @@ def main():
         for p in sections[sd["slug"]].posts:
             write_file(os.path.join(PUBLIC, sd["slug"], p.slug + ".html"),
                        build_post(cfg, sections, p))
+            stage_page.copy_bundle_assets(p, PUBLIC)
     write_file(os.path.join(PUBLIC, "archive", "index.html"),
                build_archive(cfg, sections, all_posts))
     idx_page, tag_pages = build_tags(cfg, sections, all_posts)
@@ -528,10 +572,7 @@ def main():
     for slug, page in tag_pages.items():
         write_file(os.path.join(PUBLIC, "tags", slug + ".html"), page)
     write_file(os.path.join(PUBLIC, "feed.xml"), build_feed(cfg, all_posts))
-    for filename in os.listdir(STATIC):
-        source = os.path.join(STATIC, filename)
-        if os.path.isfile(source):
-            shutil.copyfile(source, os.path.join(PUBLIC, filename))
+    copy_static()
     print(f"OK: {len(all_posts)} posts, {len(cfg['sections'])} sections -> {PUBLIC}")
 
 

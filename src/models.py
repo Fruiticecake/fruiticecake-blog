@@ -18,6 +18,8 @@ class Post:
     source: str = ""
     model: str = ""
     meta: dict = field(default_factory=dict)
+    bundle_dir: str = None    # 文件夹文章：资源所在目录；单文件文章为 None
+    stage: object = None      # design: stage 文章的渲染结果（stage.Rendered）
 
     @property
     def url(self):
