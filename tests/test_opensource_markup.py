@@ -115,7 +115,7 @@ class OpenSourceMarkupTests(unittest.TestCase):
 
     def test_clipped_containers_use_internal_focus_indicators(self):
         """overflow:hidden 的容器会裁掉外描边，里面的链接要用内阴影当焦点环。"""
-        for selector in (".docs-index-row:focus-visible",):
+        for selector in (".log a:focus-visible",):
             with self.subTest(selector=selector):
                 declarations = css_declarations(selector)
                 self.assertIn("box-shadow:inset", declarations)
@@ -123,7 +123,8 @@ class OpenSourceMarkupTests(unittest.TestCase):
 
     def test_radar_body_copy_and_small_labels_use_opaque_ink(self):
         """小字号文案只能用不透明的墨色 token，半透明的 muted/faint 对比度不够。"""
-        opaque_tokens = ("color:var(--ink)", "color:var(--ink-soft)")
+        # 新设计：--ink / --ink-2 都是实色（tokens.css 中深浅两套均为 #hex）
+        opaque_tokens = ("color:var(--ink)", "color:var(--ink-2)")
         selectors = (
             ".opensource-trends h2",
             ".opensource-trends li",
@@ -144,15 +145,14 @@ class OpenSourceMarkupTests(unittest.TestCase):
                 )
 
     def test_muted_ink_tokens_are_opaque(self):
-        """--ink-muted / --ink-faint 必须是实色，半透明会随背景丢失对比度。"""
-        css = CSS_PATH.read_text(encoding="utf-8")
-        for token in ("--ink-muted", "--ink-faint"):
+        """次级墨色 --ink-2 / --ink-3 必须是实色（深浅两套主题都是），半透明会随背景丢失对比度。"""
+        tokens_css = (Path(__file__).resolve().parents[1] / "static" / "stage" / "tokens.css").read_text(encoding="utf-8")
+        for token in ("--ink-2", "--ink-3"):
             with self.subTest(token=token):
-                match = re.search(rf"{token}\s*:\s*([^;]+);", css)
-                self.assertIsNotNone(match, f"缺少 {token}")
-                value = match.group(1).strip()
-                self.assertTrue(value.startswith("#"), f"{token} 应为实色，实际为 {value}")
-
+                values = re.findall(rf"{token}\s*:\s*([^;]+);", tokens_css)
+                self.assertGreaterEqual(len(values), 2, f"深浅主题都要定义 {token}")
+                for value in values:
+                    self.assertTrue(value.strip().startswith("#"), f"{token} 应为实色，实际为 {value}")
 
 if __name__ == "__main__":
     unittest.main()

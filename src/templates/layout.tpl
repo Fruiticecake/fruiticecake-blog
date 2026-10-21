@@ -6,70 +6,44 @@
 <title>$title</title>
 <meta name="description" content="$description">
 <meta name="author" content="Fruiticecake">
-<meta name="theme-color" content="#efe4d1">
+<meta name="theme-color" content="#0a0c0b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#eef0e9" media="(prefers-color-scheme: light)">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="application/rss+xml" title="$brand" href="/feed.xml">
+$head_boot
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="/style.css">
-<link rel="alternate" type="application/rss+xml" title="$brand" href="/feed.xml">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&family=Chakra+Petch:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/stage/tokens.css?v=$version">
+<link rel="stylesheet" href="/stage/motion.css?v=$version">
+<link rel="stylesheet" href="/style.css?v=$version">
+$analytics_html
 </head>
 <body data-page="$page">
-<div class="app-bg" aria-hidden="true"></div>
-<header class="site-header">
+<header class="bar">
   <div class="wrap">
-    <a class="brand" href="/">Fruiticecake</a>
-    <div class="tagline">$tagline</div>
-  </div>
-</header>
-<nav class="site-nav" aria-label="主导航">
-  <div class="wrap">
-    <div class="nav-pill">
+    <a class="brand" href="/"><i aria-hidden="true"></i>$brand_upper</a>
+    <nav class="site-nav" aria-label="主导航">
       <a href="/"$home_current>首页</a>
       $nav_links
       <a href="/archive/"$archive_current>归档</a>
-    </div>
+    </nav>
+    <div class="bar-tools"><span class="rec">REC · <span id="clock">00:00:00:00</span></span>$theme_button</div>
   </div>
-</nav>
+  <span class="progress" aria-hidden="true"></span>
+</header>
 <main class="wrap">
 $content
 </main>
 <footer class="site-footer">
   <div class="wrap">
-    <p>© $year Fruiticecake · 静态博客 · <a href="https://github.com/Fruiticecake/fruiticecake-blog" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="/feed.xml">RSS</a></p>
+    <span>© $year $brand_upper · STATIC BLOG · $author</span>
+    <span><a href="https://github.com/Fruiticecake/fruiticecake-blog" target="_blank" rel="noopener noreferrer">GITHUB</a> · <a href="/feed.xml">RSS</a></span>
   </div>
 </footer>
 <nav class="tabbar" aria-label="底部导航">$tab_links</nav>
-<button class="back-to-top" id="backToTop" aria-label="回到顶部" title="回到顶部">↑</button>
-
-<script type="module">
-  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-  mermaid.initialize({ startOnLoad: true, theme: 'dark' });
-</script>
-<script>
-(function(){
-  var btn = document.getElementById('backToTop');
-  window.addEventListener('scroll', function(){
-    btn.classList.toggle('show', window.scrollY > 480);
-  }, { passive: true });
-  btn.addEventListener('click', function(){ window.scrollTo({ top: 0, behavior: 'smooth' }); });
-
-  document.querySelectorAll('.post-body pre').forEach(function(pre){
-    if (pre.classList.contains('mermaid')) return;
-    var btn2 = document.createElement('button');
-    btn2.className = 'copy-btn';
-    btn2.type = 'button';
-    btn2.textContent = '复制';
-    btn2.addEventListener('click', function(){
-      var code = pre.querySelector('code') || pre;
-      navigator.clipboard.writeText(code.textContent).then(function(){
-        btn2.textContent = '已复制';
-        setTimeout(function(){ btn2.textContent = '复制'; }, 1500);
-      });
-    });
-    pre.appendChild(btn2);
-  });
-})();
-</script>
-$analytics_html
+<button class="back-to-top" id="backToTop" type="button" aria-label="回到顶部" title="回到顶部">↑</button>
+$mermaid_script
+<script type="module" src="/site/site.js?v=$version"></script>
 </body>
 </html>

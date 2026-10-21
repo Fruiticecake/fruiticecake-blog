@@ -25,7 +25,7 @@ html.m-boot body::before{content:"";position:fixed;inset:0;z-index:200;backgroun
 .boot-log b{color:var(--mark);font-weight:500}
 @keyframes boot-line{to{opacity:1}}
 .boot-bar{height:2px;background:var(--line-2);position:relative;overflow:hidden}
-.boot-bar::after{content:"";position:absolute;inset:0;background:var(--mark);box-shadow:0 0 8px var(--mark);transform:scaleX(0);transform-origin:left;
+.boot-bar::after{content:"";position:absolute;inset:0;background:var(--mark);box-shadow:0 0 8px var(--glow-c);transform:scaleX(0);transform-origin:left;
   animation:boot-fill var(--boot-ms,1100ms) linear forwards}
 @keyframes boot-fill{to{transform:scaleX(1)}}
 .boot-skip{justify-self:end;font:inherit;font-size:.66rem;color:var(--ink-3);background:none;border:1px solid var(--line-2);padding:.25rem .6rem;cursor:pointer}
@@ -47,7 +47,7 @@ html.m-boot body::before{content:"";position:fixed;inset:0;z-index:200;backgroun
 /* ---------- M1 标记点成形：首屏标题 ---------- */
 html.m-on .m-markers .gl{opacity:0}
 html.m-on .m-markers .ch::before{content:"";position:absolute;left:50%;top:52%;width:.16em;height:.16em;margin:-.08em 0 0 -.08em;border-radius:50%;
-  background:var(--mark);box-shadow:0 0 .35em var(--mark);opacity:0;transform:scale(0)}
+  background:var(--mark);box-shadow:0 0 .35em var(--glow-c);opacity:0;transform:scale(0)}
 html.m-on .m-markers.is-forming .ch::before{animation:mk-dot 1s calc(var(--i) * 42ms) var(--ease) forwards}
 html.m-on .m-markers.is-forming .gl{animation:mk-glyph .9s calc(var(--i) * 42ms + 280ms) var(--ease) forwards}
 @keyframes mk-dot{0%{opacity:0;transform:scale(0)}25%{opacity:1;transform:scale(1.4)}45%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.3)}}
@@ -61,8 +61,8 @@ html.m-on .m-markers.is-forming::after{animation:mk-bone 1.4s .2s var(--ease) fo
 
 /* 首屏其余元素：标题成形后依次进场 */
 /* 进场动画放在 .viewer 的子元素上：.viewer 自身的 transform 留给滚动推拉镜头 */
-html.m-on .hero-copy .tc,html.m-on .hero-copy .dek,html.m-on .hero-copy .meta span,html.m-on .viewer > *{opacity:0}
-html.m-on.m-ready .viewer > *{animation:rise .9s var(--ease) forwards}
+html.m-on .hero-copy .tc,html.m-on .hero-copy .dek,html.m-on .hero-copy .meta span,html.m-on .viewer > :not(.tip){opacity:0}
+html.m-on.m-ready .viewer > :not(.tip){animation:rise .9s var(--ease) forwards}
 html.m-on.m-ready .hero-copy .tc{animation:rise .6s .1s var(--ease) forwards}
 html.m-on.m-ready .hero-copy .dek{animation:rise .8s .7s var(--ease) forwards}
 html.m-on.m-ready .hero-copy .meta span{animation:rise .5s calc(.9s + var(--i,0) * 80ms) var(--ease) forwards}
@@ -86,7 +86,7 @@ html.m-on .chap.is-in::before{animation:focus-box 1.3s .1s var(--ease) forwards}
 html.m-on .m-scan{clip-path:inset(0 100% 0 0)}
 html.m-on .m-scan.is-in{animation:scan-wipe .9s var(--ease) forwards}
 .m-scan{position:relative}
-html.m-on .m-scan::after{content:"";position:absolute;top:-1px;bottom:-1px;left:0;width:2px;background:var(--mark);box-shadow:0 0 12px 2px var(--mark);opacity:0}
+html.m-on .m-scan::after{content:"";position:absolute;top:-1px;bottom:-1px;left:0;width:2px;background:var(--mark);box-shadow:0 0 12px 2px var(--glow-c);opacity:0}
 html.m-on .m-scan.is-in::after{animation:scan-line .9s var(--ease) forwards}
 @keyframes scan-wipe{to{clip-path:inset(0 0 0 0)}}
 @keyframes scan-line{0%{opacity:1;left:0}85%{opacity:1}100%{opacity:0;left:100%}}
@@ -94,7 +94,7 @@ html.m-on .m-scan.is-in::after{animation:scan-line .9s var(--ease) forwards}
 /* ---------- 正文：克制的显现 + M5 重点划线 ---------- */
 html.m-on .m-rise{opacity:0;transform:translateY(10px);transition:opacity .55s var(--ease),transform .55s var(--ease)}
 html.m-on .m-rise.is-in{opacity:1;transform:none}
-.body > p b,.body > ol b,.body > ul b{background:linear-gradient(transparent 64%,rgba(200,255,62,.2) 64%) no-repeat;background-size:100% 100%}
+.body > p b,.body > ol b,.body > ul b{background:linear-gradient(transparent 64%,color-mix(in srgb,var(--mark) 20%,transparent) 64%) no-repeat;background-size:100% 100%}
 html.m-on .body > .m-rise b{background-size:0% 100%;transition:background-size .8s .35s var(--ease)}
 html.m-on .body > .m-rise.is-in b{background-size:100% 100%}
 
@@ -124,7 +124,7 @@ html.m-on .quote::before{transform:translate(-30px,-30px);opacity:0}
 html.m-on .quote::after{transform:translate(30px,30px);opacity:0}
 html.m-on .quote em{color:var(--ink)}
 html.m-on .quote.is-in::before,html.m-on .quote.is-in::after{animation:vf-in .7s var(--ease) forwards}
-html.m-on .quote.is-in em{color:var(--mark);text-shadow:0 0 18px rgba(200,255,62,.35)}
+html.m-on .quote.is-in em{color:var(--mark);text-shadow:0 0 18px color-mix(in srgb,var(--mark) 35%,transparent)}
 
 /* ---------- M10 章节轨刻度 ---------- */
 .rail a{position:relative}

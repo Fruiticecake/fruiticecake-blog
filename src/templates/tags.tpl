@@ -1,6 +1,6 @@
 <header class="page-head">
-  <h1>标签：$tag</h1>
-  <p>共 $count 篇</p>
+  <p class="tc">[TAG] <a href="/tags/">ALL TAGS</a></p>
+  <h1>#$tag</h1>
+  <p class="count">$count TAKES</p>
 </header>
 <div class="post-list">$posts</div>
-

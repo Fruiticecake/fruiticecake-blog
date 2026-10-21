@@ -22,6 +22,8 @@ import markdown
 import models
 import chat
 import ui
+import toc
+import home_page
 import stage
 import stage_page
 
@@ -169,21 +171,6 @@ def post_item_html(post, nmap):
             f'</article>')
 
 
-def section_cards_html(sections, cfg):
-    cards = []
-    for sd in cfg["sections"]:
-        sec = sections[sd["slug"]]
-        dot = sd.get("dot", "#8a7355")
-        cards.append(
-            f'<a class="sec-card sec-{sec.slug}" href="/{sec.slug}/">\n'
-            f'  <span class="sec-dot" style="background:{util.html_escape(dot)}"></span>\n'
-            f'  <h3>{util.html_escape(sec.name)}</h3>\n'
-            f'  <p>{util.html_escape(sec.description)}</p>\n'
-            f'  <span class="count">{sec.count} 篇</span>\n'
-            f'</a>')
-    return "\n".join(cards)
-
-
 def tags_html(post):
     if not post.tags:
         return ""
@@ -193,22 +180,39 @@ def tags_html(post):
     return f'<div class="tags">{items}</div>'
 
 
+MERMAID_SCRIPT = (
+    '<script type="module">\n'
+    "  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';\n"
+    "  const light = document.documentElement.getAttribute('data-theme-resolved') === 'light';\n"
+    "  mermaid.initialize({ startOnLoad: true, theme: light ? 'neutral' : 'dark' });\n"
+    "</script>")
+
+
+def site_version():
+    """static/ 全部资源的内容哈希，页面引用 ?v= 用它，资源一改浏览器就取新文件。"""
+    return stage_page.hash_tree(STATIC)
+
+
 def render_layout(cfg, title, description, content, active=""):
     """active 传当前页面所属的板块 slug（首页传 home，归档传 archive），
-    顶部药丸导航与移动端底部标签栏据此高亮当前项。"""
+    顶栏导航与移动端底部标签栏据此高亮当前项。首页首访播放开场校准动画。"""
     t = load_template("layout.tpl")
     current = ' aria-current="page"'
     return t.substitute(
         title=title, description=description,
         brand=util.html_escape(cfg["site"]["title"]),
-        tagline=util.html_escape(cfg["site"].get("subtitle", "")),
+        brand_upper=util.html_escape(cfg["site"]["title"].upper()),
         page=util.html_escape(active),
+        head_boot=ui.head_boot_script(boot=active == "home"),
+        version=site_version(),
+        theme_button=ui.THEME_BUTTON,
         analytics_html=ui.analytics_html(cfg),
         nav_links=ui.nav_links_html(cfg, active),
         tab_links=ui.tab_links_html(cfg, active),
         home_current=current if active == "home" else "",
         archive_current=current if active == "archive" else "",
         content=content,
+        mermaid_script=MERMAID_SCRIPT if 'class="mermaid"' in content else "",
         year=datetime.datetime.now(util.BJ).year,
         author=util.html_escape(cfg["site"].get("author", "")))
 
@@ -252,33 +256,28 @@ def render_chat_section(sec):
     return f'<div class="chat-inbox">{rows}</div>' if rows else '<p class="empty-note">还没有对话记录。</p>'
 
 
-def render_blog_section(sec):
-    posts = sec.posts
-    if not posts:
+def take_no(n):
+    """拍摄编号：按时间正序给每篇文章一个编号，最新的编号最大。"""
+    return f"TAKE {n:03d}"
+
+
+def is_stage_post(post):
+    return str(post.meta.get("design", "")).lower() == "stage"
+
+
+def render_take_log(sec):
+    """博客 / 技术文档：拍摄记录式列表（编号 · 标题 + 摘要 · 日期）。"""
+    if not sec.posts:
         return '<p class="empty-note">暂无内容。</p>'
-    feature, rest = posts[0], posts[1:]
-    feature_html = (
-        f'<a class="blog-feature" href="{feature.url}">'
-        f'<div class="blog-feature-text"><span class="blog-feature-tag">最新</span>'
-        f'<h2>{util.html_escape(feature.title)}</h2>'
-        f'<p>{util.html_escape(feature.summary)}</p></div>'
-        f'<div class="blog-feature-date">{feature.date_human}</div></a>')
-    grid = "".join(
-        f'<a class="blog-grid-item" href="{p.url}">'
-        f'<div class="blog-grid-date">{p.date_human}</div>'
-        f'<div class="blog-grid-title">{util.html_escape(p.title)}</div></a>'
-        for p in rest)
-    return feature_html + (f'<div class="blog-grid">{grid}</div>' if grid else "")
-
-
-def render_docs_section(sec):
+    total = len(sec.posts)
     rows = "".join(
-        f'<a class="docs-index-row" href="{p.url}">'
-        f'<span class="docs-index-idx">{i + 1:02d}</span>'
-        f'<span class="docs-index-title">{util.html_escape(p.title)}</span>'
-        f'<span class="docs-index-date">{p.date_human}</span></a>'
+        f'<li class="m-row" style="--i:{min(i, 12)}"><a href="{p.url}">'
+        f'<span class="take-no">{take_no(total - i)}</span>'
+        f'<div><h3>{util.html_escape(p.title)}{" <span class=badge>STAGE</span>" if is_stage_post(p) else ""}</h3>'
+        f'<p>{util.html_escape(p.summary)}</p></div>'
+        f'<span class="take-date">{p.date.astimezone(util.BJ):%Y-%m-%d}</span></a></li>'
         for i, p in enumerate(sec.posts))
-    return f'<div class="docs-index">{rows}</div>' if rows else '<p class="empty-note">暂无内容。</p>'
+    return f'<ol class="log">{rows}</ol>'
 
 
 def _opensource_history_summary(post, limit=120):
@@ -330,65 +329,15 @@ def render_opensource_section(sec):
 SECTION_RENDERERS = {
     "aihot": lambda sec, nmap: render_aihot_section(sec),
     "ai-chat": lambda sec, nmap: render_chat_section(sec),
-    "blog": lambda sec, nmap: render_blog_section(sec),
-    "docs": lambda sec, nmap: render_docs_section(sec),
+    "blog": lambda sec, nmap: render_take_log(sec),
+    "docs": lambda sec, nmap: render_take_log(sec),
     "opensource": lambda sec, nmap: render_opensource_section(sec),
 }
 
 
 # ---------------- 页面 ----------------
 def build_home(cfg, sections, all_posts):
-    t = load_template("home.tpl")
-    nmap = name_map(sections)
-    nav_slim = "".join(
-        f'<a href="/{s["slug"]}/">{util.html_escape(s["name"])}</a>' for s in cfg["sections"]
-    ) + '<a href="/archive/">归档</a>'
-
-    chat_posts = [p for p in all_posts if p.section == "ai-chat"]
-    if chat_posts:
-        cp = chat_posts[0]
-        chat_teaser_block = (
-            f'<a class="home-chat-teaser" href="{cp.url}">'
-            f'<div class="home-chat-kicker">最新 AI 对话</div>'
-            f'<div class="home-chat-bubble">“{util.html_escape(cp.summary)}”</div>'
-            f'<div class="home-chat-meta">与 {util.html_escape(cp.model or "AI")} · {cp.date_human} →</div></a>')
-    else:
-        chat_teaser_block = ""
-
-    recent = all_posts[:cfg["site"].get("posts_per_home", 8)]
-    feature = recent[0] if recent else None
-    secondary = recent[1:6]
-    if feature:
-        feature_html = (
-            f'<a class="home-feature" href="{feature.url}">'
-            f'<span class="sec-badge sec-{feature.section}">{util.html_escape(nmap[feature.section])} · 头条</span>'
-            f'<h2>{util.html_escape(feature.title)}</h2>'
-            f'<p>{util.html_escape(feature.summary)}</p>'
-            f'<span class="home-feature-date">{feature.date_human} · {feature.reading_time}</span></a>')
-    else:
-        feature_html = '<p class="empty-note">暂无内容。</p>'
-    secondary_html = "".join(
-        f'<a class="home-secondary-item" href="{p.url}">'
-        f'<div class="home-secondary-top"><span class="sec-badge sec-{p.section}">{util.html_escape(nmap[p.section])}</span>'
-        f'<span class="home-secondary-date">{p.date_human}</span></div>'
-        f'<div class="home-secondary-title">{util.html_escape(p.title)}</div></a>'
-        for p in secondary)
-
-    daily_posts = [p for p in all_posts if p.section in ("aihot", "opensource")]
-    stats_html = (
-        '<div class="stat-row">'
-        + ui.stat_html("累计文章", len(all_posts), "篇")
-        + ui.stat_html("板块", len(cfg["sections"]), "个")
-        + ui.stat_html("连续更新", ui.streak_days(daily_posts), "天")
-        + '</div>')
-
-    content = t.substitute(
-        site_title=util.html_escape(cfg["site"]["title"]),
-        site_subtitle=util.html_escape(cfg["site"].get("subtitle", "")),
-        nav_slim=nav_slim, chat_teaser_block=chat_teaser_block,
-        stats_html=stats_html,
-        feature_html=feature_html, secondary_html=secondary_html,
-        section_cards=section_cards_html(sections, cfg))
+    content = home_page.build(cfg, sections, all_posts, load_template("home.tpl"), take_no)
     return render_layout(cfg, cfg["site"]["title"], cfg["site"].get("description", ""),
                          content, active="home")
 
@@ -398,10 +347,14 @@ def build_section(cfg, sections, sd):
     nmap = name_map(sections)
     renderer = SECTION_RENDERERS.get(sd["slug"])
     body = renderer(sec, nmap) if renderer else "\n".join(post_item_html(p, nmap) for p in sec.posts)
+    index = [s["slug"] for s in cfg["sections"]].index(sd["slug"]) + 1
+    last = f"{sec.posts[0].date.astimezone(util.BJ):%Y-%m-%d}" if sec.posts else "—"
     t = load_template("section.tpl")
     content = t.substitute(
+        cam=f"CAM_{index:02d}", slug_upper=util.html_escape(sec.slug.upper()),
         name=util.html_escape(sec.name),
         description=util.html_escape(sec.description),
+        count=sec.count, last=last,
         posts=body)
     return render_layout(cfg, f"{sec.name} · {cfg['site']['title']}",
                          sec.description, content, active=sd["slug"])
@@ -422,13 +375,20 @@ def build_post(cfg, sections, post):
         source_html = ""
     model_html = (f'<span class="model-badge">{util.html_escape(post.model)}</span>'
                   if post.model else "")
+    # 开源雷达是宽版多栏排版，不加目录；其余文章从 h2/h3 自动生成目录（少于 2 个标题时不显示）
+    wide = post.section == "opensource"
+    levels = (2,) if post.section == "aihot" else (2, 3)     # 日报的 h3 是新闻卡片标题
+    body, heads = (post.body_html, []) if wide else toc.add_heading_ids(post.body_html, levels)
+    rail = toc.rail_html(heads)
+    rail_html = (f'<aside class="rail" aria-label="目录"><p>// 目录</p><ol>{rail}</ol></aside>' if rail else "")
+    meta_extra = f"<span>{len(heads)} 个小节</span>" if rail else ""
     content = t.substitute(
-        slug=post.section, section_url=f"/{post.section}/",
-        post_class=" post-wide" if post.section == "opensource" else "",
+        section_url=f"/{post.section}/",
+        layout_class=" is-wide" if wide else ("" if rail else " no-rail"),
         section_name=util.html_escape(sections[post.section].name),
-        date=post.date_human, title=util.html_escape(post.title),
-        reading_time=post.reading_time, model_html=model_html,
-        tags_html=tags_html(post), source_html=source_html, body=post.body_html)
+        date=f"{post.date.astimezone(util.BJ):%Y-%m-%d}", title=util.html_escape(post.title),
+        reading_time=post.reading_time, meta_extra=meta_extra, model_html=model_html,
+        tags_html=tags_html(post), source_html=source_html, rail_html=rail_html, body=body)
     return render_layout(cfg, f"{post.title} · {cfg['site']['title']}",
                          post.summary, content, active=post.section)
 

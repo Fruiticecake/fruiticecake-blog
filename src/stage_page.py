@@ -23,7 +23,7 @@ URL_ATTR = re.compile(r'\b(src|href)="([^"]*)"')
 ABSOLUTE = re.compile(r"^(?:[a-z][a-z0-9+.-]*:|/|#)", re.I)
 
 
-def _hash_tree(root):
+def hash_tree(root):
     """目录下所有文件（相对路径 + 内容）的短哈希；目录不存在时返回空内容的哈希。"""
     digest = hashlib.sha256()
     if root and os.path.isdir(root):
@@ -38,7 +38,7 @@ def _hash_tree(root):
 
 def asset_version(static_dir):
     """static/stage 的内容哈希：资源一变，页面引用的 ?v= 就变，避免浏览器用旧缓存。"""
-    return _hash_tree(os.path.join(static_dir, STAGE_ASSETS))
+    return hash_tree(os.path.join(static_dir, STAGE_ASSETS))
 
 
 def reading_minutes(body_html):
@@ -95,7 +95,7 @@ def build_stage_post(cfg, sections, post, template_path, static_dir):
     section_name = sections[post.section].name
     title = post.meta.get("display_title") or post.title
     version = asset_version(static_dir)
-    local_v = _hash_tree(post.bundle_dir)
+    local_v = hash_tree(post.bundle_dir)
     local_js, local_css = bundle_url(post, "widgets.js"), bundle_url(post, "style.css")
     body = post.body_html
     if post.bundle_dir:
@@ -106,6 +106,8 @@ def build_stage_post(cfg, sections, post, template_path, static_dir):
         brand=util.html_escape(cfg["site"]["title"].upper()),
         nav_links=nav_html(cfg),
         analytics_html=ui.analytics_html(cfg),
+        head_boot=ui.head_boot_script(boot=True),
+        theme_button=ui.THEME_BUTTON,
         version=version,
         hero=stage.hero_name(post.meta),
         local_widgets_attr=f' data-local-widgets="{util.html_escape(local_js)}?v={local_v}"' if local_js else "",
