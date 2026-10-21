@@ -94,7 +94,7 @@ html.m-on .m-scan.is-in::after{animation:scan-line .9s var(--ease) forwards}
 /* ---------- 正文：克制的显现 + M5 重点划线 ---------- */
 html.m-on .m-rise{opacity:0;transform:translateY(10px);transition:opacity .55s var(--ease),transform .55s var(--ease)}
 html.m-on .m-rise.is-in{opacity:1;transform:none}
-.body > p b,.body > ol b,.body > ul b{background:linear-gradient(transparent 64%,color-mix(in srgb,var(--mark) 20%,transparent) 64%) no-repeat;background-size:100% 100%}
+:where(.body > p) b,:where(.body > ol) b,:where(.body > ul) b{background:linear-gradient(transparent 64%,color-mix(in srgb,var(--mark) 20%,transparent) 64%) no-repeat;background-size:100% 100%}
 html.m-on .body > .m-rise b{background-size:0% 100%;transition:background-size .8s .35s var(--ease)}
 html.m-on .body > .m-rise.is-in b{background-size:100% 100%}
 

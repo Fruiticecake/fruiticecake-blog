@@ -15,6 +15,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font
 body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:60;
   background:repeating-linear-gradient(0deg,var(--scanline) 0 1px,transparent 1px 3px)}
 a{color:var(--mark)}
+main{overflow-x:clip}   /* 角标入场前在框外，手机上会撑出横向滚动；clip 不建滚动容器，不影响 sticky */
 :focus-visible{outline:2px solid var(--mark);outline-offset:3px}
 ::selection{background:var(--mark);color:var(--bg)}
 
@@ -23,7 +24,7 @@ a{color:var(--mark)}
   padding:.7rem clamp(1rem,3vw,2.5rem);background:color-mix(in srgb,var(--bg) 84%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);
   font-family:var(--mono);font-size:.72rem;color:var(--ink-3);letter-spacing:.04em}
 .bar b{font-family:var(--disp);font-size:1rem;color:var(--ink);letter-spacing:.06em}
-.rec{display:inline-flex;align-items:center;gap:.5rem;color:var(--ir)}
+.rec{display:inline-flex;align-items:center;gap:.5rem;color:var(--ir);white-space:nowrap}
 .rec::before{content:"";width:.55rem;height:.55rem;border-radius:50%;background:var(--ir);box-shadow:0 0 10px var(--glow-ir);animation:blink 1.2s steps(2) infinite}
 @keyframes blink{50%{opacity:.15}}
 .bar nav{display:flex;gap:1.4rem}
@@ -78,9 +79,9 @@ a{color:var(--mark)}
 .chap .tc{margin:0 0 .5rem;display:flex;gap:.8rem;align-items:center}
 .chap .tc::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line-2),transparent)}
 .chap h2{margin:0;font-weight:900;font-size:clamp(1.45rem,1.4vw + 1rem,2rem);line-height:1.3;letter-spacing:-.01em}
-.body > ol{margin:0 0 1.4em;padding:0;list-style:none;counter-reset:s}
-.body > ol li{counter-increment:s;position:relative;padding:.55rem 0 .55rem 2.6rem;border-top:1px solid var(--line);color:var(--ink-2)}
-.body > ol li::before{content:counter(s,decimal-leading-zero);position:absolute;left:0;top:.62rem;font-family:var(--mono);font-size:.75rem;color:var(--mark)}
+:where(.body > ol){margin:0 0 1.4em;padding:0;list-style:none;counter-reset:s}
+:where(.body > ol) li{counter-increment:s;position:relative;padding:.55rem 0 .55rem 2.6rem;border-top:1px solid var(--line);color:var(--ink-2)}
+:where(.body > ol) li::before{content:counter(s,decimal-leading-zero);position:absolute;left:0;top:.62rem;font-family:var(--mono);font-size:.75rem;color:var(--mark)}
 .quote{margin:3rem 0;padding:1.6rem 0;border-top:1px solid var(--line-2);border-bottom:1px solid var(--line-2);font-weight:900;
   font-size:clamp(1.4rem,1.8vw + .9rem,2.15rem);line-height:1.4;text-wrap:balance}
 .quote em{font-style:normal;color:var(--mark)}
@@ -179,6 +180,9 @@ html.m-on [data-reveal].is-in{opacity:1;transform:none}
   .pipe-title,.pipe-body,.pipe-out{grid-column:1;grid-row:auto}
   .telemetry{grid-template-columns:1fr}
 }
+@media (max-width:480px){
+  .rec-label{display:none}   /* 手机上只留红点和时间码，避免「REC ·」被挤成两行 */
+}
 /* ---------- 阅读进度 + 首屏图例 ---------- */
 .progress{position:absolute;left:0;bottom:-1px;height:2px;width:100%;background:var(--mark);transform-origin:left;transform:scaleX(var(--read,0));box-shadow:0 0 8px var(--glow-c)}
 .viewer{margin:0}
@@ -193,8 +197,8 @@ html.m-on [data-reveal].is-in{opacity:1;transform:none}
 .src a{color:var(--ink-2);text-decoration-color:var(--mark)}
 .sub{margin:2.6rem 0 1rem;font-family:var(--mono);font-size:.82rem;font-weight:500;color:var(--mark);letter-spacing:.04em}
 .ledger{list-style:none;margin:0 0 1.4em;padding:0;display:grid;gap:1px;background:var(--line);border:1px solid var(--line-2)}
-.ledger li{background:var(--bg-2);padding:.9rem 1rem .9rem 2.6rem;position:relative;color:var(--ink-2);font-size:.95rem}
-.ledger li b{display:block;color:var(--ink);font-size:.82rem;font-family:var(--mono);font-weight:500;letter-spacing:.04em;margin-bottom:.15rem}
+.ledger li{background:var(--bg-2);padding:.9rem 1rem .9rem 2.6rem;margin:0;position:relative;color:var(--ink-2);font-size:.95rem}
+.ledger li b{display:block;color:var(--ink);font-size:.86rem;font-weight:700;margin-bottom:.15rem;background:none}
 .ledger li::before{position:absolute;left:1rem;top:.95rem;font-family:var(--mono);font-size:.8rem}
 .ledger .is-yes::before{content:"+";color:var(--mark)}
 .ledger .is-no::before{content:"−";color:var(--ir)}
@@ -203,7 +207,7 @@ html.m-on [data-reveal].is-in{opacity:1;transform:none}
 .lessons li::before{content:counter(l,decimal-leading-zero);font-family:var(--disp);font-size:1.9rem;line-height:1;color:var(--mark)}
 .lessons li::before{grid-row:1 / span 2}
 .lessons li > *{grid-column:2}
-.lessons b{display:block;color:var(--ink);font-size:1.08rem;margin-bottom:.2rem}
+.lessons b{display:block;color:var(--ink);font-size:1.08rem;margin-bottom:.2rem;background:none}
 .refs{margin-top:3.5rem;padding:1.2rem 1.3rem;border:1px dashed var(--line-2)}
 .refs h2{margin:0 0 .6rem;font-family:var(--mono);font-size:.78rem;font-weight:500;color:var(--mark);letter-spacing:.06em}
 .refs ul{margin:0;padding-left:1.1rem;color:var(--ink-3);font-size:.86rem;line-height:1.9}
@@ -230,8 +234,8 @@ html.m-on [data-reveal].is-in{opacity:1;transform:none}
 .body pre{background:var(--panel);border:1px solid var(--line-2);padding:1rem;overflow:auto;font-family:var(--mono);font-size:.82rem}
 .body code{font-family:var(--mono);font-size:.88em;color:var(--mark)}
 .body pre code{color:var(--ink-2)}
-.body > ul{padding-left:1.2rem;color:var(--ink-2)}
-.body > ul li{margin:.3rem 0}
+:where(.body > ul){padding-left:1.2rem;color:var(--ink-2)}
+:where(.body > ul) li{margin:.3rem 0}
 .foot a{color:var(--ink-3);text-decoration:none}
 .foot a:hover{color:var(--mark)}
 .bar .brand{font-family:var(--disp);font-size:1rem;font-weight:700;color:var(--ink);letter-spacing:.06em;text-decoration:none}
