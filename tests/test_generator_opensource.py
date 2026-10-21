@@ -98,7 +98,7 @@ class OpenSourceGeneratorTests(unittest.TestCase):
                 (public / "opensource" / "2026-08-09.html").read_text(encoding="utf-8"),
             )
             self.assertIn(
-                'class="post post-wide"',
+                'class="post-layout is-wide"',
                 (public / "opensource" / "2026-08-09.html").read_text(encoding="utf-8"),
             )
             self.assertIn("/opensource/2026-08-09.html", (public / "feed.xml").read_text(encoding="utf-8"))

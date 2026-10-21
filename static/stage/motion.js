@@ -73,7 +73,7 @@ function buildBoot() {
   return { boot, log };
 }
 
-function runBoot() {
+export function runBoot() {
   return new Promise((resolve) => {
     if (!html.classList.contains("m-boot")) { resolve(); return; }
     const { boot, log } = buildBoot();

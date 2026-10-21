@@ -60,6 +60,38 @@ def tab_links_html(cfg, active=""):
 
 
 # ---------------- Vercel Web Analytics ----------------
+_HEAD_BOOT = """<script>
+/* 首帧前执行：1) 主题——用户选择（localStorage）> 系统设置 > 深色；
+   2) 动效开关 m-on——减弱动效时不加；动效脚本 3 秒内没接管就撤销，保证内容可见。 */
+(function () {
+  var d = document.documentElement, t = null;
+  try { t = localStorage.getItem("theme"); } catch (e) {}
+  if (t === "light" || t === "dark") d.setAttribute("data-theme", t);
+  var light = t ? t === "light" : matchMedia("(prefers-color-scheme: light)").matches;
+  d.setAttribute("data-theme-resolved", light ? "light" : "dark");
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  d.classList.add("m-on");%s
+  setTimeout(function () { if (!window.__stageMotion && !window.__siteMotion) d.classList.remove("m-on", "m-boot"); }, 3000);
+})();
+</script>"""
+_BOOT_LINE = """
+  try { if (!sessionStorage.getItem("stage-boot-seen")) d.classList.add("m-boot"); } catch (e) {}"""
+
+
+def head_boot_script(boot=False):
+    """<head> 内联脚本：首帧前设好主题与动效开关，避免闪烁。boot=True 时会话首访播放开场校准。"""
+    return _HEAD_BOOT % (_BOOT_LINE if boot else "")
+
+
+THEME_BUTTON = (
+    '<button class="theme-btn" type="button" aria-label="切换明暗主题">'
+    '<svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
+    '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>'
+    '<svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">'
+    '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4'
+    'M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>')
+
+
 def analytics_html(cfg):
     """Vercel Web Analytics 埋点；config.json 里 analytics_script 留空即关闭。
 

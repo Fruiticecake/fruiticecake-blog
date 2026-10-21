@@ -1,0 +1,55 @@
+import sys
+import unittest
+from pathlib import Path
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+import ui
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class HeadBootScriptTest(unittest.TestCase):
+    def test_sets_theme_before_first_paint_and_guards_storage(self):
+        script = ui.head_boot_script()
+        self.assertTrue(script.startswith("<script>") and script.endswith("</script>"))
+        self.assertIn('localStorage.getItem("theme")', script)
+        self.assertIn("try", script)                                 # 隐私模式下 localStorage 会抛错
+        self.assertIn("prefers-color-scheme: light", script)
+        self.assertIn("data-theme-resolved", script)
+
+    def test_motion_flag_with_fallback_and_optional_boot(self):
+        plain, boot = ui.head_boot_script(), ui.head_boot_script(boot=True)
+        for script in (plain, boot):
+            self.assertIn('classList.add("m-on")', script)
+            self.assertIn("prefers-reduced-motion", script)
+            self.assertIn("setTimeout", script)                      # JS 失败时 3 秒后撤销 m-on
+        self.assertNotIn('add("m-boot")', plain)          # 普通页面不播开场
+        self.assertIn('add("m-boot")', boot)
+        self.assertIn("stage-boot-seen", boot)
+
+    def test_contains_no_template_placeholders(self):
+        # 模板用 string.Template；插入值里有 $ 虽然不会被二次替换，但保持干净便于审查
+        self.assertNotIn("$", ui.head_boot_script(boot=True))
+
+
+class TokensTest(unittest.TestCase):
+    def test_light_theme_overrides_every_color_token(self):
+        css = (ROOT / "static" / "stage" / "tokens.css").read_text(encoding="utf-8")
+        dark = css.split("@media")[0]
+        light = css.split(':root[data-theme="light"]')[1]
+        for token in ("--bg:", "--ink:", "--ink-3:", "--mark:", "--ir:", "--glow-c:", "--render-bg:", "--flesh:"):
+            self.assertIn(token, dark, token)
+            self.assertIn(token, light, token)
+
+    def test_stage_styles_have_no_hard_coded_brand_colors(self):
+        for rel in ("static/stage/stage.css", "static/stage/motion.css"):
+            css = (ROOT / rel).read_text(encoding="utf-8")
+            for literal in ("200,255,62", "230,235,228", "255,75,54", "#c8ff3e", "#0a0c0b"):
+                self.assertNotIn(literal, css, f"{rel} 里写死了 {literal}，浅色主题下会出错")
+
+
+if __name__ == "__main__":
+    unittest.main()

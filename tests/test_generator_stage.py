@@ -72,6 +72,15 @@ class StageBuildTest(unittest.TestCase):
         self.assertTrue((public / "docs" / "demo-bundle" / "widgets.js").exists())
         self.assertFalse((public / "docs" / "demo-bundle" / "index.md").exists())
 
+    def test_stage_page_supports_light_and_dark_themes(self):
+        public = self.build({"docs/demo-bundle/index.md": STAGE_POST})
+        page = (public / "docs" / "demo-bundle.html").read_text(encoding="utf-8")
+        head = page.split("</head>")[0]
+        self.assertLess(head.index("/stage/tokens.css"), head.index("/stage/stage.css"))
+        self.assertIn('localStorage.getItem("theme")', head)          # 首帧前读取用户选择
+        self.assertIn("data-theme-resolved", head)
+        self.assertIn('class="theme-btn"', page)
+
     def test_stage_page_uses_stage_shell_rail_and_widgets(self):
         public = self.build({"docs/demo-bundle/index.md": STAGE_POST,
                              "docs/demo-bundle/widgets.js": "export const widgets = {};"})
@@ -106,7 +115,8 @@ class StageBuildTest(unittest.TestCase):
         public = self.build({"docs/2026-10-01-plain.md": PLAIN_POST})
         page = (public / "docs" / "2026-10-01-plain.html").read_text(encoding="utf-8")
         self.assertIn('class="site-nav"', page)
-        self.assertNotIn("/stage/", page)
+        self.assertNotIn("/stage/runtime.js", page)       # 普通文章用全站外壳，不加载 stage 运行时
+        self.assertIn("/site/site.js", page)
 
     def test_stage_error_names_the_source_file(self):
         bad = STAGE_POST.replace("::: tldr\n结论先行。\n:::", "::: tldr\n没有结束")
