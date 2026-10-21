@@ -25,7 +25,7 @@ class HeadBootScriptTest(unittest.TestCase):
         for script in (plain, boot):
             self.assertIn('classList.add("m-on")', script)
             self.assertIn("prefers-reduced-motion", script)
-            self.assertIn("setTimeout", script)                      # JS 失败时 3 秒后撤销 m-on
+            self.assertIn("}, 5000);", script)                       # JS 失败时 5 秒后撤销 m-on（慢网首访留足时间）
         self.assertNotIn('add("m-boot")', plain)          # 普通页面不播开场
         self.assertIn('add("m-boot")', boot)
         self.assertIn("stage-boot-seen", boot)

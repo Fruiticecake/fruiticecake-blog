@@ -62,7 +62,7 @@ def tab_links_html(cfg, active=""):
 # ---------------- Vercel Web Analytics ----------------
 _HEAD_BOOT = """<script>
 /* 首帧前执行：1) 主题——用户选择（localStorage）> 系统设置 > 深色；
-   2) 动效开关 m-on——减弱动效时不加；动效脚本 3 秒内没接管就撤销，保证内容可见。 */
+   2) 动效开关 m-on——减弱动效时不加；动效脚本 5 秒内没接管就撤销，保证内容可见。 */
 (function () {
   var d = document.documentElement, t = null;
   try { t = localStorage.getItem("theme"); } catch (e) {}
@@ -71,7 +71,7 @@ _HEAD_BOOT = """<script>
   d.setAttribute("data-theme-resolved", light ? "light" : "dark");
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   d.classList.add("m-on");%s
-  setTimeout(function () { if (!window.__stageMotion && !window.__siteMotion) d.classList.remove("m-on", "m-boot"); }, 3000);
+  setTimeout(function () { if (!window.__stageMotion && !window.__siteMotion) d.classList.remove("m-on", "m-boot"); }, 5000);
 })();
 </script>"""
 _BOOT_LINE = """
