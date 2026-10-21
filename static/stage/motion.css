@@ -1,0 +1,138 @@
+/* ===========================================================================
+   「动捕棚」动效层。所有初始隐藏状态都挂在 html.m-on 下：
+   没有 JS、prefers-reduced-motion、或 motion.js 加载失败（3 秒兜底）时，页面就是完整的静态版。
+   只动 transform / opacity / clip-path / filter，不触发重排。
+   =========================================================================== */
+
+/* ---------- M0 开场：相机校准 ---------- */
+html.m-boot body{overflow:hidden}
+html.m-boot body::before{content:"";position:fixed;inset:0;z-index:200;background:var(--bg)}  /* JS 接管前的遮罩，防首屏闪现 */
+.boot{position:fixed;inset:0;z-index:210;display:grid;place-items:center;background:var(--bg);cursor:pointer;
+  font-family:var(--mono);color:var(--ink-2)}
+.boot-inner{width:min(34rem,86vw);display:grid;gap:1.1rem}
+.boot-cams{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+.boot-cam{position:relative;aspect-ratio:4/3;border:1px solid var(--line-2);overflow:hidden}
+.boot-cam span{position:absolute;left:.6rem;top:.45rem;font-size:.62rem;color:var(--ink-3)}
+.boot-cam i{position:absolute;left:50%;top:50%;width:46%;aspect-ratio:1;border:1px solid var(--mark);transform:translate(-50%,-50%) scale(1.6);opacity:0;
+  animation:boot-reticle .7s var(--ease) forwards}
+.boot-cam:nth-child(2) i{animation-delay:.18s}
+.boot-cam i::before,.boot-cam i::after{content:"";position:absolute;background:var(--mark)}
+.boot-cam i::before{left:50%;top:-30%;bottom:-30%;width:1px}
+.boot-cam i::after{top:50%;left:-30%;right:-30%;height:1px}
+@keyframes boot-reticle{to{transform:translate(-50%,-50%) scale(1);opacity:1}}
+.boot-log{margin:0;padding:0;list-style:none;font-size:.72rem;line-height:1.9;min-height:7.6em}
+.boot-log li{opacity:0;animation:boot-line .25s forwards}
+.boot-log b{color:var(--mark);font-weight:500}
+@keyframes boot-line{to{opacity:1}}
+.boot-bar{height:2px;background:var(--line-2);position:relative;overflow:hidden}
+.boot-bar::after{content:"";position:absolute;inset:0;background:var(--mark);box-shadow:0 0 8px var(--mark);transform:scaleX(0);transform-origin:left;
+  animation:boot-fill var(--boot-ms,1100ms) linear forwards}
+@keyframes boot-fill{to{transform:scaleX(1)}}
+.boot-skip{justify-self:end;font:inherit;font-size:.66rem;color:var(--ink-3);background:none;border:1px solid var(--line-2);padding:.25rem .6rem;cursor:pointer}
+.boot-skip:hover{color:var(--ink);border-color:var(--ink-3)}
+/* 退场：上下两半像快门一样分开 */
+.boot.is-out{background:transparent;pointer-events:none}
+.boot.is-out::before,.boot.is-out::after{content:"";position:fixed;left:0;right:0;height:50vh;background:var(--bg);z-index:-1;animation:shutter .55s var(--ease) forwards}
+.boot.is-out::before{top:0}
+.boot.is-out::after{bottom:0;animation-name:shutter-down}
+.boot.is-out .boot-inner{animation:boot-fade .25s forwards}
+@keyframes shutter{to{transform:translateY(-100%)}}
+@keyframes shutter-down{to{transform:translateY(100%)}}
+@keyframes boot-fade{to{opacity:0;transform:scale(.97)}}
+
+/* ---------- 拆字（M1 / M3 共用） ---------- */
+.ch{display:inline-block;position:relative}
+.ch .gl{display:inline-block}
+
+/* ---------- M1 标记点成形：首屏标题 ---------- */
+html.m-on .m-markers .gl{opacity:0}
+html.m-on .m-markers .ch::before{content:"";position:absolute;left:50%;top:52%;width:.16em;height:.16em;margin:-.08em 0 0 -.08em;border-radius:50%;
+  background:var(--mark);box-shadow:0 0 .35em var(--mark);opacity:0;transform:scale(0)}
+html.m-on .m-markers.is-forming .ch::before{animation:mk-dot 1s calc(var(--i) * 42ms) var(--ease) forwards}
+html.m-on .m-markers.is-forming .gl{animation:mk-glyph .9s calc(var(--i) * 42ms + 280ms) var(--ease) forwards}
+@keyframes mk-dot{0%{opacity:0;transform:scale(0)}25%{opacity:1;transform:scale(1.4)}45%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.3)}}
+@keyframes mk-glyph{0%{opacity:0;filter:blur(10px);transform:scale(.55)}60%{opacity:1}100%{opacity:1;filter:blur(0);transform:none}}
+/* 标题下方的「骨骼连线」：标记点成形期间一闪而过 */
+.m-markers{position:relative}
+html.m-on .m-markers::after{content:"";position:absolute;left:0;right:0;bottom:-.12em;height:1px;
+  background:linear-gradient(90deg,transparent,var(--mark),transparent);opacity:0;transform:scaleX(0)}
+html.m-on .m-markers.is-forming::after{animation:mk-bone 1.4s .2s var(--ease) forwards}
+@keyframes mk-bone{0%{opacity:0;transform:scaleX(0)}40%{opacity:.9;transform:scaleX(1)}100%{opacity:0;transform:scaleX(1)}}
+
+/* 首屏其余元素：标题成形后依次进场 */
+/* 进场动画放在 .viewer 的子元素上：.viewer 自身的 transform 留给滚动推拉镜头 */
+html.m-on .hero-copy .tc,html.m-on .hero-copy .dek,html.m-on .hero-copy .meta span,html.m-on .viewer > *{opacity:0}
+html.m-on.m-ready .viewer > *{animation:rise .9s var(--ease) forwards}
+html.m-on.m-ready .hero-copy .tc{animation:rise .6s .1s var(--ease) forwards}
+html.m-on.m-ready .hero-copy .dek{animation:rise .8s .7s var(--ease) forwards}
+html.m-on.m-ready .hero-copy .meta span{animation:rise .5s calc(.9s + var(--i,0) * 80ms) var(--ease) forwards}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+/* ---------- M2 时间码滚动 + M3 对焦：章节头 ---------- */
+html.m-on .chap .tc{opacity:0}
+html.m-on .chap.is-in .tc{animation:rise .4s var(--ease) forwards}
+.chap .tc .tc-num{font-variant-numeric:tabular-nums}
+.chap .tc .tc-num.is-rolling{color:var(--ink-2)}
+html.m-on .m-focus .gl{opacity:0}
+html.m-on .m-focus.is-in .gl{animation:focus-pull .7s calc(var(--i) * 24ms + 120ms) var(--ease) forwards}
+@keyframes focus-pull{0%{opacity:0;filter:blur(8px);transform:translateY(.25em) scale(1.08)}100%{opacity:1;filter:blur(0);transform:none}}
+/* 章节头左侧的对焦框，锁定一次后淡出 */
+.chap{position:relative}
+html.m-on .chap::before{content:"";position:absolute;left:-1rem;top:-.6rem;bottom:-.6rem;width:.7rem;border:1px solid var(--mark);border-right:0;opacity:0}
+html.m-on .chap.is-in::before{animation:focus-box 1.3s .1s var(--ease) forwards}
+@keyframes focus-box{0%{opacity:0;transform:translateX(-10px)}30%{opacity:1;transform:none}75%{opacity:1}100%{opacity:0}}
+
+/* ---------- M4 扫描线擦除：TL;DR ---------- */
+html.m-on .m-scan{clip-path:inset(0 100% 0 0)}
+html.m-on .m-scan.is-in{animation:scan-wipe .9s var(--ease) forwards}
+.m-scan{position:relative}
+html.m-on .m-scan::after{content:"";position:absolute;top:-1px;bottom:-1px;left:0;width:2px;background:var(--mark);box-shadow:0 0 12px 2px var(--mark);opacity:0}
+html.m-on .m-scan.is-in::after{animation:scan-line .9s var(--ease) forwards}
+@keyframes scan-wipe{to{clip-path:inset(0 0 0 0)}}
+@keyframes scan-line{0%{opacity:1;left:0}85%{opacity:1}100%{opacity:0;left:100%}}
+
+/* ---------- 正文：克制的显现 + M5 重点划线 ---------- */
+html.m-on .m-rise{opacity:0;transform:translateY(10px);transition:opacity .55s var(--ease),transform .55s var(--ease)}
+html.m-on .m-rise.is-in{opacity:1;transform:none}
+.body > p b,.body > ol b,.body > ul b{background:linear-gradient(transparent 64%,rgba(200,255,62,.2) 64%) no-repeat;background-size:100% 100%}
+html.m-on .body > .m-rise b{background-size:0% 100%;transition:background-size .8s .35s var(--ease)}
+html.m-on .body > .m-rise.is-in b{background-size:100% 100%}
+
+/* ---------- M6 取景框锁定：交互模块 ---------- */
+.vf-lock{position:absolute;width:14px;height:14px;border:0 solid var(--mark);pointer-events:none;z-index:2}
+.vf-lock.tl{left:-1px;top:-1px;border-width:2px 0 0 2px}
+.vf-lock.tr{right:-1px;top:-1px;border-width:2px 2px 0 0}
+.vf-lock.bl{left:-1px;bottom:-1px;border-width:0 0 2px 2px}
+.vf-lock.br{right:-1px;bottom:-1px;border-width:0 2px 2px 0}
+html.m-on .module .vf-lock{opacity:0}
+html.m-on .module .vf-lock.tl{transform:translate(-18px,-18px)}
+html.m-on .module .vf-lock.tr{transform:translate(18px,-18px)}
+html.m-on .module .vf-lock.bl{transform:translate(-18px,18px)}
+html.m-on .module .vf-lock.br{transform:translate(18px,18px)}
+html.m-on .module.is-locked .vf-lock{animation:vf-in .6s var(--ease) forwards}
+@keyframes vf-in{to{opacity:1;transform:none}}
+html.m-on .module.is-locked .module-head b{animation:rec-blink .9s .5s steps(2) 2}
+@keyframes rec-blink{50%{opacity:.2}}
+
+/* ---------- M8 追踪括号：大字引用 ---------- */
+.quote{position:relative;border:0!important;padding:1.8rem 1.4rem!important}
+.quote::before,.quote::after{content:"";position:absolute;width:1.6rem;height:1.6rem;border:2px solid var(--mark)}
+.quote::before{left:0;top:0;border-width:2px 0 0 2px}
+.quote::after{right:0;bottom:0;border-width:0 2px 2px 0}
+.quote em{transition:color .6s .5s,text-shadow .6s .5s}
+html.m-on .quote::before{transform:translate(-30px,-30px);opacity:0}
+html.m-on .quote::after{transform:translate(30px,30px);opacity:0}
+html.m-on .quote em{color:var(--ink)}
+html.m-on .quote.is-in::before,html.m-on .quote.is-in::after{animation:vf-in .7s var(--ease) forwards}
+html.m-on .quote.is-in em{color:var(--mark);text-shadow:0 0 18px rgba(200,255,62,.35)}
+
+/* ---------- M10 章节轨刻度 ---------- */
+.rail a{position:relative}
+.rail a::after{content:"";position:absolute;left:.8rem;right:0;bottom:.1rem;height:1px;background:var(--mark);transform-origin:left;
+  transform:scaleX(var(--p,0));opacity:.55;transition:transform .2s linear}
+
+/* ---------- 减弱动效：一律静态 ---------- */
+@media (prefers-reduced-motion:reduce){
+  .boot{display:none}
+  .rail a::after{transition:none}
+}
