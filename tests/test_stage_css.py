@@ -39,6 +39,23 @@ class PageOverflowTest(unittest.TestCase):
         self.assertIn("overflow-x:clip", rule.group(1))
 
 
+class WideScreenTest(unittest.TestCase):
+    def test_bar_hero_and_layout_share_the_site_content_width(self):
+        # 宽屏（1900px+）曾经正文挤在左边、右边大片空白，首屏取景器撑满一整屏；
+        # 三层背景照样铺满，内容和博客其他页面一样限宽 78rem 居中
+        css = (STAGE / "stage.css").read_text(encoding="utf-8")
+        site = (STAGE.parent / "style.css").read_text(encoding="utf-8")
+        self.assertIn("78rem", re.search(r"\.wrap\{([^}]*)\}", site).group(1))
+        self.assertRegex(css, r"--page-pad:max\([^;]*78rem")
+        for sel in (r"\.bar", r"\.hero", r"\.layout"):
+            rule = re.search(r"(?m)^" + sel + r"\{([^}]*)\}", css, re.S).group(1)
+            self.assertIn("var(--page-pad)", rule, sel)
+
+    def test_bar_nav_is_not_mono(self):
+        css = (STAGE / "stage.css").read_text(encoding="utf-8")
+        self.assertIn("font-family:var(--sans)", re.search(r"\.bar nav a\{([^}]*)\}", css).group(1))
+
+
 class RecIndicatorTest(unittest.TestCase):
     def test_rec_never_wraps_and_label_hides_on_phones(self):
         # 手机宽度下「REC ·」曾被挤成两行；标签单独包一层，窄屏只留红点和时间码

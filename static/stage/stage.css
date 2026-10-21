@@ -7,6 +7,8 @@
   /* 颜色、字体等 token 定义在 tokens.css；这里只保留组件用的别名 */
   --w-ink:var(--ink); --w-muted:var(--ink-3); --w-line:var(--line-2);
   --w-accent:var(--mark); --w-accent-2:var(--ir); --w-surface:var(--panel);
+  /* 左右留白：至少原来的边距；宽屏时补到内容区和博客其他页面一样 78rem 居中（背景仍铺满） */
+  --page-pad:max(clamp(1rem,3vw,2.5rem),(100% - 78rem) / 2);
   --w-font-ui:var(--sans); --w-font-mono:var(--mono);
 }
 *{box-sizing:border-box}
@@ -21,18 +23,18 @@ main{overflow-x:clip}   /* 角标入场前在框外，手机上会撑出横向�
 
 /* ---------- 顶栏 ---------- */
 .bar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:1.5rem;justify-content:space-between;
-  padding:.7rem clamp(1rem,3vw,2.5rem);background:color-mix(in srgb,var(--bg) 84%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);
+  padding:.7rem var(--page-pad);background:color-mix(in srgb,var(--bg) 84%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);
   font-family:var(--mono);font-size:.72rem;color:var(--ink-3);letter-spacing:.04em}
 .bar b{font-family:var(--disp);font-size:1rem;color:var(--ink);letter-spacing:.06em}
 .rec{display:inline-flex;align-items:center;gap:.5rem;color:var(--ir);white-space:nowrap}
 .rec::before{content:"";width:.55rem;height:.55rem;border-radius:50%;background:var(--ir);box-shadow:0 0 10px var(--glow-ir);animation:blink 1.2s steps(2) infinite}
 @keyframes blink{50%{opacity:.15}}
 .bar nav{display:flex;gap:1.4rem}
-.bar nav a{color:var(--ink-2);text-decoration:none}
+.bar nav a{color:var(--ink-2);text-decoration:none;font-family:var(--sans);font-size:.85rem;letter-spacing:0}
 .bar nav a:hover{color:var(--mark)}
 
 /* ---------- 首屏：双机位取景器 ---------- */
-.hero{padding:clamp(1.5rem,3vw,2.5rem) clamp(1rem,3vw,2.5rem) 0}
+.hero{padding:clamp(1.5rem,3vw,2.5rem) var(--page-pad) 0}
 .viewer{position:relative;border:1px solid var(--line-2);background:var(--viewer-bg)}
 .viewer svg{display:block;width:100%;height:auto}
 .vf-corner{fill:none;stroke:var(--ink-2);stroke-width:1.5}
@@ -60,7 +62,7 @@ main{overflow-x:clip}   /* 角标入场前在框外，手机上会撑出横向�
 .meta span{border:1px solid var(--line-2);padding:.15rem .55rem}
 
 /* ---------- 正文：左侧时间码轨 + 单栏 ---------- */
-.layout{display:grid;grid-template-columns:13rem minmax(0,40rem) 1fr;gap:clamp(1.5rem,4vw,4rem);padding:0 clamp(1rem,3vw,2.5rem) 6rem}
+.layout{display:grid;grid-template-columns:13rem minmax(0,40rem) 1fr;gap:clamp(1.5rem,4vw,4rem);padding:0 var(--page-pad) 6rem}
 .rail{position:sticky;top:4.2rem;align-self:start;padding-top:3.4rem}
 .rail p{font-family:var(--mono);font-size:.66rem;color:var(--ink-3);letter-spacing:.1em;margin:0 0 .8rem}
 .rail ol{list-style:none;margin:0;padding:0;border-left:1px solid var(--line-2)}
