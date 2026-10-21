@@ -36,6 +36,40 @@ python3 -m http.server -d public 8000
 python3 -m unittest discover -s tests
 ```
 
+## 写文章（个人站 + CSDN 同步）
+
+```bash
+# 1. 从模板 scaffolds/post.md 新建草稿（drafts/ 已 gitignore，不会公开）
+python3 src/drafts.py new "TLS 握手详解" --tags 网络,TLS --slug tls-handshake
+
+# 2. 写作；图片放 static/images/<slug>/，正文用 /images/<slug>/xxx.png 引用
+
+# 3. 发布：移到 content/<section>/，日期改为当天
+python3 src/drafts.py publish drafts/2026-10-20-tls-handshake.md
+
+# 4. 推送上线个人站，然后生成 CSDN 版本（补全图片域名 + 文末原文链接）
+python3 src/export_csdn.py content/docs/2026-10-20-tls-handshake.md
+```
+
+导出结果在 `exports/csdn/<slug>.md`，复制后粘贴到 CSDN 的 Markdown 编辑器；
+标题、标签、摘要会打印在终端，用来填写发布表单。草稿的 `section` 默认是
+`docs`，写随笔时改成 `blog`。
+
+### 「动捕棚」交互文章（design: stage）
+
+技术文章可以用深色「动捕棚」版式：首屏动画、时间码目录、交互组件、滚动动效，
+同一份原稿导出 CSDN 时自动展开成普通 Markdown。
+
+```bash
+python3 src/drafts.py new "标题" --stage --slug english-slug   # drafts/<slug>/index.md
+python3 src/drafts.py publish drafts/english-slug              # 先校验写法，再整个文件夹发布
+python3 src/export_csdn.py content/docs/english-slug
+```
+
+- 写法、组件、动效、自检清单：`.claude/skills/stage-article/`（给 AI 用的写作 skill，人读也合适）
+- 设计系统与组件库：`static/stage/`；渲染：`src/stage.py`、`src/stage_page.py`
+- 范例：`content/docs/ai-rig-any-monster/`
+
 ## 新增板块
 
 在 `config.json` 的 `sections` 加一条即可，无需改代码：`slug` / `name` /
