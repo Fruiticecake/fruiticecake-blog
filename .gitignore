@@ -28,3 +28,10 @@ Thumbs.db
 
 .vercel
 .env*
+
+# 草稿与导出：仓库公开，未完成的稿子和 CSDN 导出文件只留在本机
+/drafts/
+/exports/
+
+# 设计实验室：样稿与对比页，正式版本在 static/stage/
+/design-lab/
