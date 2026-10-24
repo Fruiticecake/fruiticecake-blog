@@ -18,7 +18,8 @@ SPARK_WEEKS = 12
 
 def marker_json(cfg, sections, all_posts):
     data = {
-        "sections": [{"slug": s["slug"], "name": s["name"], "tab": s.get("tab", ""),
+        "daily": list(DAILY_SECTIONS),
+        "sections":[{"slug": s["slug"], "name": s["name"], "tab": s.get("tab", ""),
                       "count": sections[s["slug"]].count} for s in cfg["sections"]],
         "posts": [{"t": p.title, "u": p.url, "d": p.date.astimezone(util.BJ).strftime("%Y-%m-%d"), "s": p.section,
                    "stage": str(p.meta.get("design", "")).lower() == "stage"} for p in all_posts],
@@ -29,13 +30,14 @@ def marker_json(cfg, sections, all_posts):
 
 def telemetry_html(cfg, all_posts):
     daily = [p for p in all_posts if p.section in DAILY_SECTIONS]
+    # 每个数字对应首页海藻场的一种形态（/site/strands.js），点击切换
     cells = [
-        ("TOTAL TAKES", str(len(all_posts)), "累计文章"),
-        ("STREAK", f"{ui.streak_days(daily)}<small> d</small>", "连续更新天数"),
-        ("THIS MONTH", str(ui.month_count(all_posts)), "本月新增"),
-        ("CAMS", str(len(cfg["sections"])), "内容板块"),
+        ("burst", "TOTAL TAKES", str(len(all_posts)), "累计文章"),
+        ("timeline", "STREAK", f"{ui.streak_days(daily)}<small> d</small>", "连续更新天数"),
+        ("globe", "THIS MONTH", str(ui.month_count(all_posts)), "本月新增"),
+        ("hub", "CAMS", str(len(cfg["sections"])), "内容板块"),
     ]
-    inner = "".join(f"<div><small>{k}</small><b>{v}</b><span>{d}</span></div>" for k, v, d in cells)
+    inner = "".join(f'<div data-form="{f}"><small>{k}</small><b>{v}</b><span>{d}</span></div>' for f, k, v, d in cells)
     return f'<div class="telemetry" data-reveal>{inner}</div>'
 
 
