@@ -120,6 +120,18 @@ html.m-on .viewer .is-captured .bone{animation:draw-line 1.6s .3s var(--ease) fo
 .telemetry b{display:block;font-family:var(--disp);font-size:clamp(1.8rem,3vw,2.6rem);line-height:1.15;color:var(--mark)}
 .telemetry b small{display:inline;font-size:.45em;color:var(--ink-3);letter-spacing:0}
 .telemetry span{font-size:.78rem;color:var(--ink-3)}
+.strands{margin:0 0 clamp(1.6rem,3vw,2.4rem);overflow:hidden}
+.strands canvas{display:block;width:100%;height:clamp(280px,40vw,500px);touch-action:pan-y}
+.strands-note{min-width:0;color:var(--ink-2)}
+/* 数字行当作海藻场的形态菜单（JS 加 .is-menu）：与下方画布拼成一块，选中项顶上一道荧光线 */
+.telemetry.is-menu{margin-bottom:0}
+.telemetry.is-menu + .strands{border-top:0}
+.telemetry.is-menu [data-form]{position:relative;cursor:pointer;transition:background .2s}
+.telemetry.is-menu [data-form]:hover{background:var(--panel)}
+.telemetry.is-menu [data-form]::before{content:"";position:absolute;left:0;right:0;top:-1px;height:2px;background:var(--mark);
+  box-shadow:var(--glow-shadow);transform:scaleX(0);transition:transform .35s var(--ease)}
+.telemetry.is-menu [aria-pressed="true"]::before{transform:none}
+.telemetry.is-menu [aria-pressed="false"] b{color:var(--ink-3)}
 .latest{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:1.2rem}
 .feature{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:1rem;min-height:17rem;padding:1.4rem;border:1px solid var(--line-2);
   background:var(--panel);overflow:hidden;transition:border-color .25s}

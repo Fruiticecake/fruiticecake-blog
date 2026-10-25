@@ -64,6 +64,25 @@ class SiteShellTest(unittest.TestCase):
         self.assertEqual(len(data["posts"]), total)
         self.assertTrue(all({"t", "u", "d", "s"} <= set(p) for p in data["posts"]))
 
+    def test_home_shows_the_strands_field_under_the_telemetry(self):
+        page = self.read("index.html")
+        self.assertIn('id="strands"', page)
+        self.assertLess(page.index('class="telemetry"'), page.index('id="strands"'))
+        self.assertTrue((self.public / "site" / "strands.js").exists())
+        self.assertNotIn('id="strands"', self.read("archive/index.html"))
+
+    def test_each_telemetry_cell_selects_a_strands_form(self):
+        page = self.read("index.html")
+        telemetry = re.search(r'<div class="telemetry".*?</div></div>', page, re.S).group(0)
+        self.assertEqual(re.findall(r'data-form="(\w+)"', telemetry), ["burst", "timeline", "globe", "hub"])
+        raw = re.search(r'<script type="application/json" id="marker-data">(.*?)</script>', page, re.S).group(1)
+        data = json.loads(raw)
+        self.assertEqual(data["daily"], ["aihot", "opensource"])
+        # 「本月新增」是本月有更新的天数，和地球上亮起的经线数一致
+        month = re.search(r'\[LIVE\] (\d{4}-\d{2})', page).group(1)
+        shown = re.search(r'data-form="globe"><small>[^<]*</small><b>(\d+)</b>', telemetry).group(1)
+        self.assertEqual(int(shown), len({p["d"] for p in data["posts"] if p["d"].startswith(month)}))
+
     def test_mermaid_loads_only_where_used(self):
         for page in self.pages:
             text = page.read_text(encoding="utf-8")

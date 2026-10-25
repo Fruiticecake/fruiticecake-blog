@@ -14,6 +14,13 @@
   <p class="lede">$site_subtitle</p>
 </section>
 $telemetry_html
+<figure class="viewer strands" id="strands" data-reveal aria-label="数据可视化：点上方四个数字，长条会摆成对应的形态">
+  <canvas aria-hidden="true"></canvas>
+  <figcaption class="viewer-cap">
+    <span class="strands-note">点上方的数字，看它们的形状</span>
+    <span class="strands-ctl cap-note" hidden></span>
+  </figcaption>
+</figure>
 <section class="block" aria-labelledby="latest-h">
   <div class="block-head"><p class="tc">[LATEST]</p><h2 id="latest-h">最近拍摄</h2><a class="more" href="/archive/">ARCHIVE →</a></div>
   <div class="latest">

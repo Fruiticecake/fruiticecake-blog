@@ -149,6 +149,20 @@ async function initConstellation() {
   }
 }
 
+/* ---------- 首页海藻场 ---------- */
+async function initStrands() {
+  const figure = document.getElementById("strands");
+  const data = document.getElementById("marker-data");
+  if (!figure || !data) return;
+  try {
+    const { mount } = await import(`./strands.js${VERSION}`);
+    mount(figure, JSON.parse(data.textContent));
+  } catch (e) {
+    figure.hidden = true;                              // 纯装饰：失败就整块隐藏
+    console.error("[site] 海藻场加载失败，页面其余内容不受影响", e);
+  }
+}
+
 async function init() {
   window.__siteMotion = true;
   initTheme();
@@ -159,12 +173,14 @@ async function init() {
   if (!motionOn()) {                                   // 减弱动效：直接显示一切
     document.querySelectorAll("[data-reveal]").forEach((n) => n.classList.add("is-in"));
     initConstellation();
+    initStrands();
     return;
   }
   const homeTitle = prepareMotion();
   await runBoot();                                     // 只有首页首访带 m-boot，其余页面立即返回
   html.classList.add("m-ready");
   initConstellation();
+  initStrands();
   playMotion(homeTitle);
 }
 
