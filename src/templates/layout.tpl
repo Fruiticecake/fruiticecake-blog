@@ -6,8 +6,7 @@
 <title>$title</title>
 <meta name="description" content="$description">
 <meta name="author" content="Fruiticecake">
-<meta name="theme-color" content="#0a0c0b" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#eef0e9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0c0b">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="alternate" type="application/rss+xml" title="$brand" href="/feed.xml">
 $head_boot
