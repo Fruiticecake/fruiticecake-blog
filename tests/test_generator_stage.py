@@ -98,6 +98,15 @@ class StageBuildTest(unittest.TestCase):
         self.assertNotIn('class="site-nav"', page)
         self.assertNotIn("$", page.split("<body")[1].split("<script")[0])  # 没有未替换的模板占位符
 
+    def test_stage_nav_links_home_sections_and_archive(self):
+        public = self.build({"docs/demo-bundle/index.md": STAGE_POST})
+        page = (public / "docs" / "demo-bundle.html").read_text(encoding="utf-8")
+        nav = page.split('<nav aria-label="站点">')[1].split("</nav>")[0]
+        self.assertIn('<a class="nav-home" href="/">首页</a>', nav)        # 手机上也保留的回首页入口
+        self.assertIn('<a href="/docs/" aria-current="true">', nav)       # 当前文章所在板块高亮
+        self.assertIn('href="/archive/"', nav)
+        self.assertLess(nav.index('href="/"'), nav.index('href="/docs/"'))
+
     def test_bundle_style_is_linked_only_when_present(self):
         public = self.build({"docs/with-style/index.md": STAGE_POST,
                              "docs/with-style/style.css": ".x{}",

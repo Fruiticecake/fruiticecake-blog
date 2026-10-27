@@ -85,8 +85,14 @@ def rail_html(chapters):
         for c in chapters)
 
 
-def nav_html(cfg):
-    return "".join(f'<a href="/{s["slug"]}/">{util.html_escape(s["name"])}</a>' for s in cfg["sections"])
+def nav_html(cfg, active=""):
+    """首页 + 各板块 + 归档，与全站导航同序；文章所在板块高亮，首页链接在手机上也保留。"""
+    links = []
+    for slug, url, name, _short in ui._destinations(cfg):
+        attrs = ' class="nav-home"' if slug == "home" else ""
+        attrs += f' href="{url}"' + (' aria-current="true"' if slug == active else "")
+        links.append(f"<a{attrs}>{util.html_escape(name)}</a>")
+    return "".join(links)
 
 
 def build_stage_post(cfg, sections, post, template_path, static_dir):
@@ -104,7 +110,7 @@ def build_stage_post(cfg, sections, post, template_path, static_dir):
         title=util.html_escape(f"{post.title} · {cfg['site']['title']}"),
         description=util.html_escape(post.summary),
         brand=util.html_escape(cfg["site"]["title"].upper()),
-        nav_links=nav_html(cfg),
+        nav_links=nav_html(cfg, post.section),
         analytics_html=ui.analytics_html(cfg),
         head_boot=ui.head_boot_script(boot=True),
         theme_button=ui.THEME_BUTTON,
