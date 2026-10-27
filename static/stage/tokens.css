@@ -1,6 +1,6 @@
 /* ===========================================================================
    「动捕棚」设计 token：深色（默认）与浅色「日光棚」两套取值。
-   主题选择顺序：<html data-theme="light|dark">（用户手动）> 系统 prefers-color-scheme > 深色。
+   默认深色，不跟随系统；读者手动选浅色时 <html data-theme="light">。
    对比度（对 --bg）：深色 ink 16.2 / ink-3 5.3 / mark 16.7；浅色 ink 15.9 / ink-3 5.4 / mark 5.2 / ir 4.8。
    =========================================================================== */
 :root{
@@ -21,19 +21,7 @@
   --ease:cubic-bezier(.2,.7,.1,1);
   color-scheme:dark;
 }
-/* 浅色「日光棚」：同一套视觉语言的白天版——纸灰底、深橄榄标记、无辉光 */
-@media (prefers-color-scheme: light){
-  :root:not([data-theme="dark"]){
-    --bg:#eef0e9; --bg-2:#e5e8df; --panel:#f8f9f5; --panel-2:#ffffff;
-    --ink:#121612; --ink-2:#39423a; --ink-3:#59635b;
-    --line:rgba(18,22,18,.10); --line-2:rgba(18,22,18,.22);
-    --mark:#3f6f00; --mark-dim:rgba(63,111,0,.12); --ir:#c4301d; --ir-dim:rgba(196,48,29,.10);
-    --on-mark:#f8f9f5; --glow:none; --glow-shadow:none; --scanline:transparent;
-    --viewer-bg:radial-gradient(120% 90% at 50% 0%,#ffffff 0%,#eef0e9 75%);
-    --glow-c:transparent; --glow-ir:transparent; --render-bg:#e3e7dd; --flesh:#9c8164;
-    color-scheme:light;
-  }
-}
+/* 浅色「日光棚」：同一套视觉语言的白天版——纸灰底、深橄榄标记、无辉光；只在读者手动切换时启用 */
 :root[data-theme="light"]{
   --bg:#eef0e9; --bg-2:#e5e8df; --panel:#f8f9f5; --panel-2:#ffffff;
   --ink:#121612; --ink-2:#39423a; --ink-3:#59635b;
