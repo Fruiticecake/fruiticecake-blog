@@ -30,8 +30,9 @@ main{overflow-x:clip}   /* 角标入场前在框外，手机上会撑出横向�
 .rec::before{content:"";width:.55rem;height:.55rem;border-radius:50%;background:var(--ir);box-shadow:0 0 10px var(--glow-ir);animation:blink 1.2s steps(2) infinite}
 @keyframes blink{50%{opacity:.15}}
 .bar nav{display:flex;gap:1.4rem}
-.bar nav a{color:var(--ink-2);text-decoration:none;font-family:var(--sans);font-size:.85rem;letter-spacing:0}
+.bar nav a{color:var(--ink-2);text-decoration:none;font-family:var(--sans);font-size:.85rem;letter-spacing:0;white-space:nowrap}
 .bar nav a:hover{color:var(--mark)}
+.bar nav a[aria-current]{color:var(--ink);box-shadow:inset 0 -2px var(--mark)}
 
 /* ---------- 首屏：双机位取景器 ---------- */
 .hero{padding:clamp(1.5rem,3vw,2.5rem) var(--page-pad) 0}
@@ -176,7 +177,9 @@ html.m-on [data-reveal].is-in{opacity:1;transform:none}
 }
 @media (max-width:860px){
   .hero-copy{grid-template-columns:1fr}
-  .bar nav{display:none}
+  .bar nav a:not(.nav-home){display:none}   /* 手机上只留回首页 */
+  .bar nav a.nav-home::before{content:"← "}
+  .bar{gap:.8rem}
   .pipe-rail{grid-template-columns:repeat(4,1fr)}
   .pipe-panel{grid-template-columns:1fr}
   .pipe-title,.pipe-body,.pipe-out{grid-column:1;grid-row:auto}
