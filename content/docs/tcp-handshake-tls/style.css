@@ -1,0 +1,99 @@
+/* 本文专属组件样式：首屏时序 / TCP 状态机 / 重启模拟 / TLS 往返对比 */
+/* ---------- 公共：时序图 ---------- */
+.lad-life{stroke:var(--line-2);stroke-width:1.5}
+.lad-name{font-family:var(--mono);fill:var(--ink-2);letter-spacing:.06em}
+.lad-band rect{fill:transparent}
+.lad-band rect.odd{fill:color-mix(in srgb,var(--ink) 4%,transparent)}
+.lad-rtt{font-family:var(--mono);fill:var(--ink-3)}
+.lad-msg{--c:var(--ink-2);--d:0s}
+.lad-msg.k-tls{--c:var(--mark)}
+.lad-msg.k-http{--c:var(--ink)}
+.lad-line{stroke:var(--c);stroke-width:1.6;stroke-dasharray:1;stroke-dashoffset:1;transition:stroke-dashoffset .5s var(--ease) var(--d)}
+.lad-msg.is-enc .lad-line{stroke-width:2.2}
+.lad-head{fill:var(--c);opacity:0;transition:opacity .2s calc(var(--d) + .4s)}
+.lad-label{fill:var(--c);font-family:var(--mono);paint-order:stroke;stroke:var(--panel);stroke-width:5px;stroke-linejoin:round;opacity:0;transition:opacity .3s calc(var(--d) + .3s)}
+.lad-msg.is-on .lad-line{stroke-dashoffset:0}
+.lad-msg.is-on .lad-head,.lad-msg.is-on .lad-label{opacity:1}
+.lad-msg.k-tls .lad-line{filter:drop-shadow(0 0 3px var(--glow-c))}
+
+/* ---------- 首屏 ---------- */
+.wire-hero{width:100%;height:auto;display:block}
+.wire-hero .lad-label{stroke:transparent}
+.viewer-cap .k-tcp,.viewer-cap .k-tls,.viewer-cap .k-http{width:1.4rem;border-top:2px solid var(--ink-2)}
+.viewer-cap .k-tls{border-color:var(--mark)}
+.viewer-cap .k-http{border-color:var(--ink)}
+
+/* ---------- TCP 状态机 ---------- */
+.tcp-sides{display:flex;justify-content:space-between;gap:1rem;margin-bottom:.3rem}
+.tcp-side{display:grid;gap:.15rem;min-width:9.5rem;padding:.45rem .7rem;border:1px solid var(--line-2);background:var(--bg-2);transition:border-color .3s,background .3s}
+.tcp-r{text-align:right}
+.tcp-who{font-size:.72rem;color:var(--ink-3)}
+.tcp-state{font-family:var(--mono);font-size:.9rem;font-weight:600;color:var(--ink)}
+.tcp-side.is-est{border-color:var(--mark)}
+.tcp-side.is-est .tcp-state{color:var(--mark)}
+.tcp-side.is-hot{border-color:color-mix(in srgb,var(--mark) 55%,var(--ir));background:var(--mark-dim)}
+.tcp-side.is-stuck{border-color:var(--ir);background:var(--ir-dim)}
+.tcp-side.is-stuck .tcp-state{color:var(--ir)}
+.tcp-svg{width:100%;max-width:560px;height:auto;display:block;margin:0 auto}
+.lad-msg.is-ghost{opacity:.35}
+.lad-msg.is-ghost .lad-line{stroke-dasharray:.02 .02;stroke-dashoffset:0;stroke:var(--ir)}
+.lad-msg.is-ghost .lad-head{fill:var(--ir)}
+.lad-msg.is-ghost .lad-label{opacity:0}
+.tcp-stuck{font-family:var(--mono);fill:var(--ir);opacity:0;transition:opacity .3s}
+.tcp-stuck.is-on{opacity:1}
+.tcp-cap{min-height:3.2em;margin:.4rem 0 .6rem!important;font-size:.9rem;color:var(--ink)!important;line-height:1.6}
+.tcp-ctrl{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}
+.tcp-count{font-family:var(--mono);font-size:.72rem;color:var(--ink-3);min-width:7.5rem;text-align:center}
+.tcp-btn,.tcp-bug,.rs-toggle,.rs-go,.tls-ver,.tls-rtt{font-family:var(--mono);font-size:.76rem;background:transparent;color:var(--ink-2);border:1px solid var(--line-2);padding:.4rem .8rem;cursor:pointer;transition:all .2s}
+.tcp-bug,.rs-toggle.is-warn{font-family:var(--sans)}
+.tcp-btn:hover:not(:disabled),.tcp-bug:hover,.rs-toggle:hover,.tls-ver:hover,.tls-rtt:hover{border-color:var(--ink-2);color:var(--ink)}
+.tcp-btn:disabled{opacity:.35;cursor:default}
+.tcp-btn.is-primary,.rs-go{background:var(--mark);border-color:var(--mark);color:var(--on-mark);font-weight:700}
+.tcp-btn.is-primary:hover:not(:disabled),.rs-go:hover:not(:disabled){filter:brightness(1.1);color:var(--on-mark)}
+.rs-go:disabled{opacity:.45;cursor:progress}
+.tcp-bug{margin-left:auto}
+.tcp-bug[aria-pressed="true"],.rs-toggle.is-warn[aria-pressed="true"]{border-color:var(--ir);color:var(--ir);background:var(--ir-dim)}
+:is(.tcp-btn,.tcp-bug,.rs-toggle,.rs-go,.tls-ver,.tls-rtt):focus-visible{outline:2px solid var(--mark);outline-offset:2px}
+
+/* ---------- 重启模拟 ---------- */
+.rs-bar{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.8rem}
+.rs-go{margin-left:auto}
+.rs-toggle[aria-pressed="true"]{border-color:var(--mark);color:var(--mark);background:var(--mark-dim)}
+.rs-toggle::before{content:"OFF · ";opacity:.7}
+.rs-toggle[aria-pressed="true"]::before{content:"ON · "}
+.rs-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:.8rem}
+.rs-h{margin:0 0 .35rem!important;font-family:var(--mono);font-size:.68rem;color:var(--ink-3)!important;letter-spacing:.04em}
+.rs-table,.rs-term{list-style:none;margin:0;padding:.5rem .6rem;min-height:8.5rem;background:var(--render-bg);border:1px solid var(--line-2);font-family:var(--mono);font-size:.74rem;display:grid;align-content:start;gap:.25rem}
+.rs-sock{display:grid;grid-template-columns:6.4rem minmax(0,1fr) auto;gap:.5rem;color:var(--ink-2);animation:rs-in .3s var(--ease)}
+.rs-state{font-weight:600}
+.rs-addr{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rs-extra{color:var(--ink-3)}
+.s-listen .rs-state{color:var(--mark)}
+.s-time_wait .rs-state,.s-time_wait .rs-extra{color:color-mix(in srgb,var(--mark) 45%,var(--ir))}
+.rs-term li{color:var(--ink-2);word-break:break-all;font-family:var(--mono);animation:rs-in .25s var(--ease)}
+.rs-term li.ok{color:var(--mark)}
+.rs-term li.err{color:var(--ir);font-family:var(--sans)}
+.rs-term li.dim{color:var(--ink-3);font-family:var(--sans)}
+@keyframes rs-in{from{opacity:0;transform:translateY(3px)}}
+
+/* ---------- TLS 往返对比 ---------- */
+.tls-bar{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.6rem;margin-bottom:.4rem}
+.tls-group{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem}
+.tls-lab{font-family:var(--mono);font-size:.68rem;color:var(--ink-3);margin-right:.2rem}
+.tls-ver[aria-pressed="true"]{border-color:var(--mark);color:var(--on-mark);background:var(--mark);font-weight:700}
+.tls-rtt[aria-pressed="true"]{border-color:var(--ink-2);color:var(--ink);background:color-mix(in srgb,var(--ink) 7%,transparent)}
+.tls-svg{width:100%;max-width:600px;height:auto;display:block;margin:0 auto}
+.tls-sum{display:flex;flex-wrap:wrap;align-items:baseline;gap:.4rem 1rem;margin:.4rem 0 0!important}
+.tls-total{font-family:var(--disp);font-size:1.6rem;color:var(--mark)!important;font-weight:600}
+.tls-detail{font-size:.86rem;color:var(--ink-2)}
+
+@media (max-width:560px){
+  .tcp-side{min-width:0;flex:1}
+  .tcp-bug{margin-left:0}
+  .rs-grid{grid-template-columns:1fr}
+  .rs-go{margin-left:0}
+  .rs-sock{grid-template-columns:5.6rem minmax(0,1fr) auto}
+}
+@media (prefers-reduced-motion:reduce){
+  .lad-line,.lad-head,.lad-label,.rs-sock,.rs-term li{transition:none;animation:none}
+}
