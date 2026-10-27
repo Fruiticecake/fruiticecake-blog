@@ -1,10 +1,10 @@
 ---
-title: 从三次握手到 TLS 1.3：TCP 建连、挥手与线上排障
+title: 从三次握手到 TLS 1.3：TCP 建连、挥手、双向认证与线上排障
 display_title: 从[三次握手]到 TLS 1.3
 date: 2026-10-27
 section: docs
-summary: "TCP 怎么建立和关闭连接，TIME_WAIT 和 CLOSE_WAIT 分别说明了什么，重启报 Address already in use 怎么办，以及 TLS 1.3 如何在一个往返里协商出密钥。"
-tags: [网络, TCP, TLS, Linux, 排障]
+summary: "TCP 怎么建立和关闭连接，TIME_WAIT 和 CLOSE_WAIT 分别说明了什么，重启报 Address already in use 怎么办；TLS 1.3 如何在一个往返里协商出密钥，单向与双向认证有什么区别，证书里的公钥长什么样。"
+tags: [网络, TCP, TLS, mTLS, X.509, Linux, 排障]
 kicker: 技术文档 / 网络 · TCP · TLS
 source: "https://www.rfc-editor.org/rfc/rfc9293"
 source_label: RFC 9293 · RFC 8446
@@ -13,7 +13,7 @@ hero: wire
 ---
 
 ::: tldr
-TCP 用**三次握手**同步双方的初始序号，用**四次挥手**让两个方向各自关闭。线上看到大量 TIME_WAIT 多半是正常现象，看到大量 **CLOSE_WAIT** 一定是自己的代码没调 `close()`。TLS 1.3 把加密握手压到 **1 个往返**，前提是证书链和主机名都配对了。
+TCP 用**三次握手**同步双方的初始序号，用**四次挥手**让两个方向各自关闭。线上看到大量 TIME_WAIT 多半是正常现象，看到大量 **CLOSE_WAIT** 一定是自己的代码没调 `close()`。TLS 1.3 把加密握手压到 **1 个往返**，双向认证（mTLS）也不多花往返；证书里的公钥只用来验签，不用来加密数据。
 :::
 
 这篇是我自己的复习笔记，事实以 RFC 9293（TCP）、RFC 8446（TLS 1.3）和 Linux 内核文档为准，加了图解和线上遇到过的坑。个人站原文里的状态机和时序图可以点着一步步走。
@@ -265,6 +265,199 @@ TLS 1.3 的完整握手：
 6. **验证私钥持有**（CertificateVerify）：服务端用证书对应的私钥对握手记录签名，证明它不是拿着别人的公开证书冒充。→ 握手完成
 :::
 
+## [TLS] 证书里装了什么：公钥在哪个字段
+
+证书校验的每一步都在读证书里的某个字段。TLS 用的证书是 **X.509 v3** 格式，用 ASN.1 描述结构、按 **DER** 二进制编码；我们平时看到的 `-----BEGIN CERTIFICATE-----` 开头的 **PEM** 文件，只是把 DER 做了 Base64 再加上头尾两行。
+
+一张证书分三大块：
+
+1. **`tbsCertificate`**（To Be Signed，待签名的内容）：证书的全部信息都在这里。
+2. **`signatureAlgorithm`**：签发者用什么算法签名，比如 `ecdsa-with-SHA256`、`sha256WithRSAEncryption`。
+3. **`signatureValue`**：签发者（上一级 CA）用**它自己的私钥**对 `tbsCertificate` 的签名。
+
+`tbsCertificate` 里的字段：
+
+| 字段 | 内容 | 校验时用来干什么 |
+|---|---|---|
+| `version` | v3（编码值为 2） | v3 才有扩展字段 |
+| `serialNumber` | CA 分配的序列号 | 吊销列表（CRL / OCSP）按它查 |
+| `issuer` | 签发者的名字 | 找上一级证书，拼证书链 |
+| `validity` | `notBefore` / `notAfter` | 检查有效期 |
+| `subject` | 持有者的名字，如 `CN=api.example.com` | 客户端证书常用 CN 标识「这是哪个服务 / 设备」 |
+| **`subjectPublicKeyInfo`** | **持有者的公钥**：算法 + 公钥本体 | 验证持有者发来的 CertificateVerify 签名 |
+| `extensions` | SAN、密钥用途、扩展密钥用途、是否 CA、AKI / SKI、OCSP 地址等 | 主机名匹配、用途检查、拼链 |
+
+所以问题的答案是：**公钥放在 `tbsCertificate` 里的 `subjectPublicKeyInfo`（SPKI）字段**，服务端证书和客户端证书都一样。SPKI 自己又分两部分：
+
+- **`algorithm`**：一个算法标识（OID），加上可选参数。
+- **`subjectPublicKey`**：一个 BIT STRING，里面是公钥本体。它的格式取决于算法：
+
+| 算法 | algorithm（OID） | subjectPublicKey 里装的 | SPKI 总长（DER） |
+|---|---|---|---|
+| RSA 2048 | `rsaEncryption` 1.2.840.113549.1.1.1，参数为 NULL | 又一层 DER：`RSAPublicKey ::= SEQUENCE { modulus n, publicExponent e }`，e 通常是 65537 | 294 字节 |
+| ECDSA P-256 | `id-ecPublicKey` 1.2.840.10045.2.1，参数是曲线 `prime256v1` 1.2.840.10045.3.1.7 | 椭圆曲线上的一个点，未压缩格式：`0x04 ‖ X(32 字节) ‖ Y(32 字节)`，共 65 字节 | 91 字节 |
+| Ed25519 | `id-Ed25519` 1.3.101.112，无参数 | 32 字节的原始公钥 | 44 字节 |
+
+::: interactive cert-anatomy title="拆开一张证书" hint="CLICK FIELD / SWITCH"
+**一张 X.509 v3 证书的结构**（服务端证书和客户端证书结构完全相同，区别只在字段的值）：
+
+- `tbsCertificate`
+  - `version`：v3
+  - `serialNumber`：序列号
+  - `signature`：签名算法（与外层 signatureAlgorithm 相同）
+  - `issuer`：签发者
+  - `validity`：notBefore / notAfter
+  - `subject`：持有者。服务端证书如 `CN=api.example.com`；客户端证书如 `CN=order-service`
+  - `subjectPublicKeyInfo`：持有者的公钥 = algorithm（OID + 参数）+ subjectPublicKey（BIT STRING）
+  - `extensions`：subjectAltName（服务端证书必须包含域名）、keyUsage（digitalSignature）、extendedKeyUsage（服务端证书是 serverAuth，客户端证书是 clientAuth）、basicConstraints（CA:FALSE）
+- `signatureAlgorithm`：如 ecdsa-with-SHA256
+- `signatureValue`：上一级 CA 的私钥对 tbsCertificate 的签名
+:::
+
+几个容易混淆的点：
+
+- **证书里的公钥不用来加密数据。**TLS 1.3 里它只做一件事：验证对方在 CertificateVerify 里用私钥做的签名，证明「这张证书确实是你的」。真正用来协商密钥的是 `key_share` 里的 **ECDHE 临时公钥**，每次连接都重新生成，用完就扔——这就是前向保密。（TLS 1.2 的 RSA 密钥交换会用证书公钥加密预主密钥，1.3 已删除这种方式。）
+- **两种 PEM 公钥文件**：`-----BEGIN PUBLIC KEY-----` 里是完整的 SPKI（带算法标识），`-----BEGIN RSA PUBLIC KEY-----` 是 PKCS#1 格式，只有 RSA 的 n 和 e。
+- **证书「固定」（pinning）通常固定的是 SPKI 的哈希**，而不是整张证书：续期时只要不换密钥对，SPKI 不变，固定就不会失效。
+
+动手看一看：
+
+```bash
+# 证书的全部字段（Subject Public Key Info 一节就是公钥）
+openssl x509 -in server.crt -noout -text
+
+# 只导出公钥，得到 -----BEGIN PUBLIC KEY-----（即 SPKI 的 PEM）
+openssl x509 -in server.crt -noout -pubkey > server.pub
+
+# 看 SPKI 的 ASN.1 结构：算法 OID、曲线参数、BIT STRING
+openssl asn1parse -in server.pub
+
+# SPKI 的 SHA-256 指纹（pinning 用的就是它）
+openssl pkey -pubin -in server.pub -outform der | openssl dgst -sha256 -binary | base64
+```
+
+## [TLS] 认证的三个层级：不验证、单向、双向
+
+「加密」和「认证」是两件事：ECDHE 保证了中间没人能偷听，但如果不验证证书，你可能正在和一个中间人加密聊天。按「谁验证谁」，TLS 连接分三个层级：
+
+| 层级 | 谁出示证书 | 谁验证谁 | 典型场景 |
+|---|---|---|---|
+| **不验证**（`verify=False`） | 服务端出示 | 没人验证 | 只该出现在临时调试里；等于没有身份认证 |
+| **单向认证** | 只有服务端 | 客户端验证服务端 | 浏览器访问网站、绝大多数 HTTPS API |
+| **双向认证（mTLS）** | 服务端和客户端都出示 | 双方互相验证 | 服务间调用（零信任 / 服务网格）、IoT 设备接入、银行与支付等 B2B 接口 |
+
+单向认证里，服务端怎么确认用户是谁？靠**应用层**：密码、Cookie、Token。双向认证把「你是谁」下沉到**传输层**：没有合法客户端证书的连接，在握手阶段就被拒绝，请求根本到不了业务代码。
+
+### 双向认证在握手里多了什么
+
+TLS 1.3 的双向认证**不增加往返**，还是 1-RTT，只是多了三条消息：
+
+1. 服务端在 EncryptedExtensions 之后发 **CertificateRequest**：要求客户端出示证书，并告诉它可以用哪些签名算法（`signature_algorithms`），以及服务端信任哪些 CA（`certificate_authorities`，可选）。
+2. 客户端回 **Certificate**：自己的证书链。
+3. 客户端回 **CertificateVerify**：用**客户端私钥**对到目前为止的握手记录签名，证明它持有证书对应的私钥。然后才是客户端的 Finished。
+
+服务端拿到后，做的校验和客户端校验服务端证书几乎一样：证书链能否追溯到**服务端配置的客户端 CA**、是否在有效期、扩展密钥用途是否包含 **`clientAuth`**、CertificateVerify 签名是否正确。不同的是**不检查主机名**——客户端没有域名可匹配，身份一般取自 `subject` 的 CN 或 SAN（比如 `URI:spiffe://…`），由应用自己决定怎么授权。
+
+如果客户端没有合适的证书，它会发一个**空的 Certificate**。服务端要求必须认证时，TLS 1.3 下会以 `certificate_required` 告警中断握手。
+
+::: interactive tls-auth title="三种认证层级的 TLS 1.3 握手" hint="SWITCH MODE"
+**不验证**：报文和单向认证完全一样，但客户端跳过证书校验，中间人可以冒充服务端。
+
+**单向认证**（3 条消息，1-RTT）：
+
+1. 客户端 → ClientHello + key_share
+2. 服务端 → ServerHello + key_share，加密的 EncryptedExtensions、Certificate、CertificateVerify、Finished
+3. 客户端 → Finished + 应用数据
+
+**双向认证**（仍然 1-RTT）：
+
+1. 客户端 → ClientHello + key_share
+2. 服务端 → ServerHello + key_share，加密的 EncryptedExtensions、**CertificateRequest**、Certificate、CertificateVerify、Finished
+3. 客户端 → 加密的 **Certificate、CertificateVerify**、Finished + 应用数据
+
+双向认证时，服务端校验客户端证书：链追溯到配置的客户端 CA、在有效期内、扩展密钥用途含 clientAuth、CertificateVerify 签名正确；不检查主机名。
+:::
+
+和 TLS 1.2 对比：1.2 也支持双向认证（服务端在 ServerHelloDone 之前发 CertificateRequest；客户端先发 Certificate，再发 ClientKeyExchange，然后发 CertificateVerify），但那时这些消息是**明文**的，任何旁观者都能看到客户端证书里的身份信息。TLS 1.3 把它们放进加密段，客户端身份也受保护了。TLS 1.3 还支持**握手后认证**（`post_handshake_auth`）：连接建立后再按需要求客户端证书，但 HTTP/2 禁止使用它。
+
+### 动手搭一套双向认证
+
+用 OpenSSL 建一个内部 CA，签一张客户端证书。注意给客户端证书加上 `extendedKeyUsage=clientAuth`：
+
+```bash
+# 1. 内部 CA（只用来签客户端证书）
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+  -keyout ca.key -out ca.crt -days 3650 -subj "/CN=Demo Client CA"
+
+# 2. 客户端私钥 + 证书签名请求（CSR），CN 写服务名
+openssl req -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+  -keyout client.key -out client.csr -subj "/CN=order-service"
+
+# 3. CA 签发，标明用途：客户端认证
+printf "keyUsage=critical,digitalSignature\nextendedKeyUsage=clientAuth\n" > client.ext
+openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -out client.crt -days 365 -extfile client.ext
+```
+
+服务端（以 Nginx 为例）开启客户端校验，并把校验结果转给后端：
+
+```nginx
+server {
+    listen 443 ssl;
+    ssl_certificate         /etc/nginx/server.crt;     # 服务端自己的证书（单向认证就有）
+    ssl_certificate_key     /etc/nginx/server.key;
+    ssl_client_certificate  /etc/nginx/client-ca.crt;  # 信任哪个 CA 签的客户端证书
+    ssl_verify_client       on;                        # 必须出示证书；optional 为可选
+    ssl_verify_depth        2;
+
+    location / {
+        proxy_set_header X-Client-Verify $ssl_client_verify;  # SUCCESS / FAILED:原因 / NONE
+        proxy_set_header X-Client-DN     $ssl_client_s_dn;    # 例如 CN=order-service
+        proxy_pass http://backend;
+    }
+}
+```
+
+后端只能信任**来自 Nginx 的**这两个请求头，其他来源一律丢弃，否则任何人都能伪造一个 `X-Client-DN`。
+
+客户端出示证书：
+
+```bash
+curl --cert client.crt --key client.key --cacert server-ca.crt https://api.internal.example/
+```
+
+```python
+import requests
+
+resp = requests.get(
+    "https://api.internal.example/",
+    cert=("client.crt", "client.key"),   # 客户端证书 + 私钥
+    verify="server-ca.crt",              # 用来验证服务端的 CA
+)
+```
+
+```go
+// Go 服务端：要求并校验客户端证书
+pool := x509.NewCertPool()
+pool.AppendCertsFromPEM(clientCAPEM)
+srv := &http.Server{
+    Addr: ":8443",
+    TLSConfig: &tls.Config{
+        ClientAuth: tls.RequireAndVerifyClientCert,
+        ClientCAs:  pool,
+        MinVersion: tls.VersionTLS13,
+    },
+}
+log.Fatal(srv.ListenAndServeTLS("server.crt", "server.key"))
+```
+
+本地验证可以直接用 OpenSSL 起一对服务端和客户端：
+
+```bash
+openssl s_server -accept 8443 -cert server.crt -key server.key -CAfile ca.crt -Verify 1
+openssl s_client -connect localhost:8443 -cert client.crt -key client.key -CAfile server-ca.crt
+```
+
 ## [PIT] 坑三：TLS 的常见报错
 
 | 报错 / 现象 | 常见原因 | 怎么查、怎么改 |
@@ -275,6 +468,10 @@ TLS 1.3 的完整握手：
 | 一台服务器多个域名，拿到的是别的证书 | 客户端没发 **SNI** | `openssl s_client` 加 `-servername`；老客户端升级 |
 | `handshake failure` / `no shared cipher` / `protocol version` | 双方没有共同支持的版本或套件 | 用 `-tls1_2` / `-tls1_3` 分别试；升级老旧客户端 |
 | 内网自签证书报错 | 客户端信任库里没有你的 CA | 把内部 CA 加入信任库，**不要**在代码里关闭校验 |
+| mTLS：`certificate required` / `400 No required SSL certificate was sent` | 客户端没带证书，或它的证书不是服务端要求的 CA 签发的，客户端选择不发 | `openssl s_client` 输出里看 Acceptable client certificate CA names；检查 `--cert` / `--key` 路径 |
+| mTLS：`unknown ca` / `unable to verify the first certificate` | 服务端配置的客户端 CA 不是签发这张客户端证书的 CA，或中间证书没一起发 | 服务端 `ssl_client_certificate` 指向正确的 CA；客户端发完整链 |
+| mTLS：`unsupported certificate purpose` | 客户端证书的扩展密钥用途里没有 `clientAuth` | `openssl x509 -noout -ext extendedKeyUsage` 检查，重新签发 |
+| mTLS：直连正常，经过负载均衡就失败 | 负载均衡器终结了 TLS，客户端证书到不了后端 | 负载均衡改为 TCP 透传，或在负载均衡上做 mTLS 并以可信请求头转发身份 |
 
 排查命令：
 
@@ -314,6 +511,7 @@ curl -vI https://example.com
 3. **服务端监听 socket 一律在 bind 前设 SO_REUSEADDR。**先看框架是不是已经设了，裸写 socket 时别漏。
 4. **能复用就别新建。**每个新的 HTTPS 连接都要付出 2～3 个 RTT 和一次非对称运算，连接池和 Keep-Alive 是最便宜的优化。
 5. **证书出错时修配置，不要关校验。**大多数 TLS 报错都是链不完整、主机名不匹配或时钟不对。
+6. **加密不等于认证。**ECDHE 防偷听，证书 + CertificateVerify 防冒充；服务间调用要确认「对方是谁」时，用 mTLS 把身份校验下沉到握手里。
 :::
 
 ## [REF] 参考
@@ -321,6 +519,9 @@ curl -vI https://example.com
 - [RFC 9293：Transmission Control Protocol (TCP)](https://www.rfc-editor.org/rfc/rfc9293)——状态机、三次握手、TIME_WAIT
 - [RFC 8446：The Transport Layer Security (TLS) Protocol Version 1.3](https://www.rfc-editor.org/rfc/rfc8446)
 - [RFC 5246：TLS 1.2](https://www.rfc-editor.org/rfc/rfc5246)——用于对比 1.2 的握手流程
+- [RFC 5280：X.509 证书与 CRL](https://www.rfc-editor.org/rfc/rfc5280)——证书字段、SubjectPublicKeyInfo、扩展
+- [RFC 8740：在 HTTP/2 中使用 TLS 1.3](https://www.rfc-editor.org/rfc/rfc8740)——禁止握手后认证
+- [Nginx ngx_http_ssl_module](https://nginx.org/en/docs/http/ngx_http_ssl_module.html)——`ssl_verify_client`、`$ssl_client_verify`
 - [Linux 内核文档：ip-sysctl](https://docs.kernel.org/networking/ip-sysctl.html)——`tcp_fin_timeout`、`tcp_tw_reuse`、`tcp_syncookies`、`ip_local_port_range`
 - `man 7 socket`（SO_REUSEADDR、SO_REUSEPORT）、`man 8 ss`
 - 页面中的时序动画为图解，RTT 计数按理想网络计算，不含丢包重传。
