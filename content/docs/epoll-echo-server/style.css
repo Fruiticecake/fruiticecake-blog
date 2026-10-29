@@ -210,3 +210,31 @@
   .mx-copy.is-down .mx-strip,.mx-copy.is-up .mx-strip{opacity:1}
   .er-chip{transition:none}
 }
+
+/* ---------- LT 与 ET ---------- */
+.lt-bar{display:flex;flex-wrap:wrap;gap:.6rem 1.2rem;margin-bottom:.7rem}
+.lt-group{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem}
+.lt-lab{font-size:.72rem;color:var(--ink-3);margin-right:.2rem}
+.lt-btn{font-family:var(--sans);font-size:.78rem;background:transparent;color:var(--ink-2);border:1px solid var(--line-2);padding:.4rem .8rem;cursor:pointer;transition:all .2s}
+.lt-btn:hover{border-color:var(--ink-2);color:var(--ink)}
+.lt-btn[aria-pressed="true"]{background:var(--mark);border-color:var(--mark);color:var(--on-mark);font-weight:700}
+.lt-btn:focus-visible{outline:2px solid var(--mark);outline-offset:2px}
+.lt-more{border-color:var(--ir);color:var(--ir)}
+.lt-more[hidden]{display:none}
+.lt-buf{position:relative;height:1.9rem;border:1px solid var(--line-2);background:var(--render-bg);overflow:hidden}
+.lt-fill{position:absolute;inset:0;transform-origin:left;background:color-mix(in srgb,var(--mark) 35%,transparent);transition:transform .45s var(--ease)}
+.w-lt.is-stuck .lt-fill{background:color-mix(in srgb,var(--ir) 40%,transparent)}
+.lt-buftext{position:relative;display:block;padding:.35rem .6rem;font-size:.78rem;color:var(--ink)}
+.lt-rows{list-style:none;margin:.6rem 0 0;padding:0;display:grid;gap:.3rem;min-height:9rem}
+.lt-row{display:flex;align-items:baseline;gap:.6rem;font-size:.84rem;color:var(--ink-2);animation:ep-in .3s var(--ease)}
+.lt-tag{flex:none;width:3.6rem;font-family:var(--mono);font-size:.64rem;font-weight:700;letter-spacing:.06em;color:var(--ink-3)}
+.lt-row.k-wake{color:var(--ink)}
+.lt-row.k-wake .lt-tag{color:var(--mark)}
+.lt-row.k-data .lt-tag{color:var(--ink)}
+.lt-row.k-stuck{color:var(--ir);font-weight:700}
+.lt-row.k-stuck .lt-tag{color:var(--ir)}
+.lt-row.k-idle{color:var(--ink-3)}
+.lt-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;margin-top:.6rem}
+.lt-sum{margin:0!important;font-weight:700;color:var(--ink)!important;font-size:.9rem}
+.w-lt.is-stuck .lt-sum{color:var(--ir)!important}
+@media (prefers-reduced-motion:reduce){.lt-row{animation:none}.lt-fill{transition:none}}

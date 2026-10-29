@@ -3,8 +3,8 @@ title: epoll 回显服务器是怎么工作的：从 accept 队列到就绪链�
 display_title: epoll 只把[就绪的 fd]交给你
 date: 2026-10-28
 section: docs
-summary: "一个 epoll 回显服务器里，listen_fd 为什么「可读」就代表有新连接：三次握手由内核完成，连接排进 accept 队列，队列非空监听 socket 就可读；epoll_wait 返回后仍要写 for 循环，但循环的是就绪的 fd 而不是全部连接——这正是它和 select / poll 的区别。附 WSL 实测和面试答法。"
-tags: [Linux, 网络, epoll, select, poll, TCP, 嵌入式, 面试]
+summary: "一个 epoll 回显服务器里，listen_fd 为什么「可读」就代表有新连接，epoll_wait 返回后的 for 循环和 select 有什么不同；水平触发与边缘触发差在哪，read / write 的每种返回值和客户端断开该怎么处理。全部结论附 WSL 实测。"
+tags: [Linux, 网络, epoll, select, poll, TCP, 嵌入式, LT, ET]
 kicker: 技术文档 / Linux · 网络编程 · I/O 多路复用
 source: "https://man7.org/linux/man-pages/man7/epoll.7.html"
 source_label: epoll(7) · listen(2) · Linux 5.10
@@ -142,7 +142,7 @@ ev.events = EPOLLIN;      // 关心「可读」事件（对监听 fd 来说 = �
 - **队列满时又来一个 SYN**：内核直接丢掉这个 SYN，不回任何东西，计数器 `ListenOverflows` / `ListenDrops` 加一。客户端收不到 SYN+ACK，会按指数退避重传 SYN，表现为 `connect()` 卡住，最后可能超时。
 - **握手的最后一个 ACK 到达时队列已满**：默认（`net.ipv4.tcp_abort_on_overflow = 0`）内核丢掉这个 ACK，连接留在半连接状态，稍后重传 SYN+ACK，如果到时候队列有空位就能「自愈」；设为 1 时，内核直接回 RST，客户端会看到 `Connection reset by peer`。
 
-不同内核版本在细节上有差别（比如队列的判满条件），所以面试时说「取决于 `tcp_abort_on_overflow`，默认是丢弃而不是 RST」就够了，不要说死。下文「动手验证」里有一个把 backlog 改成 1 的实验，可以亲眼看到 SYN 被丢。
+不同内核版本在细节上有差别（比如队列的判满条件），所以描述这一点时说「取决于 `tcp_abort_on_overflow`，默认是丢弃而不是 RST」就够了，不要说死。下文「动手验证」里有一个把 backlog 改成 1 的实验，可以亲眼看到 SYN 被丢。
 
 ## [Q2] epoll_wait 之后还要写 for 循环，和 select 有什么区别
 
@@ -275,6 +275,103 @@ demo.c 把 fd 本身当标签，所以 `events[i].data.fd` 正好就是那个 fd
 - **同一个 `ev` 变量被反复使用**：先给监听 fd 用，后面每 `accept` 一个连接又改写一次。这是安全的，因为 `epoll_ctl` 在调用时就把内容拷进了内核，之后你改用户态的 `ev` 不会影响已经登记的条目。
 - **「close 之后 epoll 会自动把这个 fd 移除」**：在 demo.c 里成立，但有前提。epoll 跟踪的其实是 fd 背后的「打开文件」，只有当指向它的所有 fd 都关闭了（没有被 `dup` 过、没有 `fork` 出去的子进程还拿着）才会自动移除——这是 epoll(7) 问答部分专门提醒的一条。稳妥的写法是先 `epoll_ctl(EPOLL_CTL_DEL)` 再 `close`。
 
+## [LT/ET] 水平触发和边缘触发：同一份数据，通知几次
+
+epoll 给每个 fd 提供两种通知方式，由登记时 `ev.events` 里有没有 `EPOLLET` 决定：
+
+- **水平触发**（LT，默认）：只要 fd 处于就绪状态，比如接收缓冲区里还有数据，每次 `epoll_wait` 都会报告它。demo.c 用的就是 LT。
+- **边缘触发**（ET）：只在状态发生变化时报告。对「可读」来说，就是有新数据到达的那一刻；之后缓冲区里就算还剩数据，只要没有新数据进来，`epoll_wait` 就不会再报告这个 fd。
+
+下面是实测（WSL2，内核 5.10）：对端一次发来 3000 字节，服务端每次被唤醒只 `read` 1024 字节。
+
+::: interactive lt-et title="LT 与 ET：3000 字节，每次读 1024" hint="SWITCH MODE / READ STYLE"
+| 触发方式 | 每次被唤醒怎么读 | epoll_wait 返回次数 | 读到 |
+|---|---|---|---|
+| LT | 只读一次 1024 字节 | 3 次 | 3000 / 3000 |
+| ET | 只读一次 1024 字节 | 1 次 | 1024 / 3000，剩 1976 字节留在缓冲区 |
+| ET | 循环读，直到 read 返回 -1 / EAGAIN | 1 次 | 3000 / 3000 |
+
+ET 只读一次的那一行里，剩下的 1976 字节并没有丢，只是不会再触发通知。实测中对端随后再发 2 字节，epoll_wait 又返回了 1 次：新数据到达是一次新的「边缘」。如果对端正在等你的回复、不再发东西，这条连接就会一直卡着。
+:::
+
+### ET 必须配非阻塞 fd，读到 EAGAIN 为止
+
+ET 只通知一次，所以收到通知后必须把数据读空。读空的标志是 `read` 返回 -1 且 `errno == EAGAIN`（或 `EWOULDBLOCK`），这要求 fd 是**非阻塞**的。`accept` 出来的 fd 默认是阻塞的：如果不改，读空之后的最后那次 `read` 会一直阻塞，整个事件循环都卡在这一个连接上。
+
+如果把 demo.c 改成 ET，accept 之后要先把 fd 设成非阻塞，登记时加上 `EPOLLET`，5b 分支改成循环读。下面这段是示意，不是 demo.c 原文：
+
+```c
+// accept 之后：
+fcntl(conn_fd, F_SETFL, fcntl(conn_fd, F_GETFL) | O_NONBLOCK);
+ev.events = EPOLLIN | EPOLLET;
+
+// 5b 分支：
+for (;;) {
+    ssize_t r = read(fd, buf, sizeof(buf));
+    if (r > 0) { write(fd, buf, r); continue; }            // 读到数据，接着读
+    if (r == 0) { close(fd); break; }                       // 对方关闭
+    if (errno == EAGAIN || errno == EWOULDBLOCK) break;     // 读空了，等下一次通知
+    if (errno == EINTR) continue;                           // 被信号打断，重试
+    close(fd); break;                                       // 其他错误
+}
+```
+
+监听 fd 也一样：ET 下几个连接同时到达只会通知一次，`accept` 也要循环调用到返回 EAGAIN，否则剩下的连接会一直排在 accept 队列里。
+
+### 什么时候用哪个
+
+- **LT**：默认值，容易写对。「每次通知只读一次」这种写法只在 LT 下正确，漏读了下一轮还会被提醒。不确定时用 LT。Redis 的事件库用的就是 LT。
+- **ET**：同一份数据只通知一次，`epoll_wait` 的返回次数更少，代价是必须用非阻塞 fd、每次都读写到 EAGAIN，每个连接的状态要管得更严。Nginx 用的是 ET。
+- 写事件的差别更明显：LT 下只要发送缓冲区还有空间，`EPOLLOUT` 每次都会报告；ET 下只在发送缓冲区从满变成不满时报告一次。下一节会讲 `EPOLLOUT` 该怎么用。
+
+## [IO] read 和 write：每种返回值意味着什么
+
+### read
+
+| 返回值 | 意思 | 该做什么 |
+|---|---|---|
+| `> 0` | 读到这么多字节，可能比你要的少 | 处理数据。LT 下可以等下次通知再读，ET 下要接着读 |
+| `0` | 对方关闭了它那个方向（收到 FIN），以后不会再有数据 | 关闭这个连接 |
+| `-1`，`EAGAIN` / `EWOULDBLOCK` | 非阻塞 fd 上暂时没有数据了 | 不是错误，回到 `epoll_wait` |
+| `-1`，`EINTR` | 被信号打断 | 重试 |
+| `-1`，`ECONNRESET` 等 | 对方发来 RST，连接已经异常断开 | 关闭这个连接 |
+
+两点要注意：
+
+- **TCP 是字节流，没有消息边界。**客户端一次发的一行字，服务端可能分两次读到，也可能和下一行一起读到。回显服务器不在乎，但只要有自己的协议（比如按行、按长度头分包），就得在应用层自己拼包。
+- demo.c 用 `r <= 0` 把 0 和 -1 一起处理、一律关闭。在阻塞 fd + LT 下基本够用：epoll 报告可读之后，那一次 `read` 不会返回 EAGAIN。一旦换成非阻塞 fd 或 ET，就必须把 EAGAIN 单独拿出来，否则会把正常的连接误关掉。
+
+### write
+
+| 返回值 | 意思 | 该做什么 |
+|---|---|---|
+| 等于要写的长度 | 全部拷进了内核的发送缓冲区，不代表对方已经收到 | 继续 |
+| 大于 0 但小于要写的长度 | 只写进去一部分（非阻塞 fd，发送缓冲区快满了） | 把剩下的存起来，等可写时再发 |
+| `-1`，`EAGAIN` | 发送缓冲区满了（非阻塞 fd） | 存起来，登记 `EPOLLOUT` 等可写 |
+| `-1`，`EPIPE` | 对方已经关闭，连接不能再写；同时进程收到 **SIGPIPE**，默认动作是终止进程 | 启动时忽略 SIGPIPE（或用 `send` 加 `MSG_NOSIGNAL`），然后关闭连接 |
+
+实测两个细节：
+
+- 对方关闭之后，第一次 `write` 仍然返回 1（数据被拷进了发送缓冲区，对方回了 RST），第二次才返回 -1 / `EPIPE`。如果没有忽略 SIGPIPE，第二次 `write` 时进程就直接退出了。**demo.c 没有处理 SIGPIPE。**
+- 让对方一直不读，在本机回环上用非阻塞 fd 一直写，写进约 2.5 MB 后返回 EAGAIN（自己的发送缓冲区和对方的接收缓冲区都满了，具体大小取决于内核的缓冲区自动调节）。demo.c 的 fd 是阻塞的，这时 `write` 会一直卡住，整个事件循环陪它一起卡住：**一个不读数据的客户端，就能让所有客户端都失去响应**。demo.c 也没有检查 `write` 的返回值。
+
+### EPOLLOUT 只在需要时登记
+
+实测：在 LT 下登记 `EPOLLOUT`、什么都不写，连续 5 次 `epoll_wait` 都立即报告可写。发送缓冲区几乎总是有空间，所以一直挂着 `EPOLLOUT` 会让事件循环空转。正确的用法是：
+
+1. 平时只关注 `EPOLLIN`；
+2. `write` 没写完（部分写入或 EAGAIN）时，把剩余数据存进这个连接自己的发送缓冲，用 `EPOLL_CTL_MOD` 加上 `EPOLLOUT`；
+3. 等 `EPOLLOUT` 到来，把剩余数据发完，再用 `EPOLL_CTL_MOD` 把 `EPOLLOUT` 去掉。
+
+### 断开时 epoll 报告什么
+
+| 对方怎么断开 | epoll_wait 报告的事件（登记了 EPOLLIN 和 EPOLLRDHUP） | 随后 read |
+|---|---|---|
+| 正常 `close`，发 FIN | `EPOLLIN`、`EPOLLRDHUP` | 返回 0 |
+| 发 RST（实测用 `SO_LINGER` 超时为 0 触发） | `EPOLLIN`、`EPOLLRDHUP`、`EPOLLHUP`、`EPOLLERR` | 返回 -1，`ECONNRESET` |
+
+`EPOLLHUP` 和 `EPOLLERR` 不用登记，epoll 总会报告；`EPOLLRDHUP` 需要自己在 `ev.events` 里加上。demo.c 只登记了 `EPOLLIN`，靠 `read` 的返回值判断断开，也是可以的。
+
 ## [LAB] 动手验证：两个终端，亲眼看内核做握手
 
 ### 1. 跑起来
@@ -358,17 +455,45 @@ Recv-Q Send-Q Local Address:Port Peer Address:Port Process
 
 做完记得把 128 改回来。
 
-## [INTERVIEW] 面试怎么答
+## [QA] 五个问题，各用一段话回答
 
-### 30 秒版本
+### select / poll / epoll 最核心的区别是什么？
 
-> select、poll、epoll 都是 I/O 多路复用：一个线程同时等多个 fd。select 用位图，每次调用都要把整个集合拷进内核，内核逐个检查，返回后用户还要用 FD_ISSET 再扫一遍，集合被改写、每轮要重建，而且最多 1024 个 fd。poll 把位图换成 pollfd 数组，去掉了 1024 的限制、不用重建，但拷贝和线性扫描还在。epoll 把登记和等待分开：epoll_ctl 只登记一次，fd 就绪时内核通过回调把它挂到就绪链表，epoll_wait 只返回就绪的 fd，所以每次等待的开销跟就绪数有关，而不是跟连接总数有关。
+核心区别在于**由谁记住要监视哪些 fd，以及怎么找出就绪的那几个**。select 和 poll 每次调用都把完整的 fd 集合交给内核，内核逐个检查，再把结果交回来让你逐个找，开销和**监视的 fd 总数**成正比；select 另外还有 1024 的上限，而且每轮都要重建集合。epoll 把集合存在内核里，`epoll_ctl` 只登记一次；fd 就绪时由回调放进就绪链表，`epoll_wait` 只返回就绪的那几个，开销和**就绪数**成正比。此外 epoll 支持边缘触发（ET），select / poll 只有水平触发的语义；epoll 是 Linux 专有的，select / poll 是 POSIX 标准。
 
-### 再加一句进阶
+### 高并发时为什么用 epoll？
 
-> 不过如果大部分连接一直都很活跃，就绪数接近总数，epoll 的优势会变小；连接很少时三者差别也不大。另外 epoll 有水平触发 LT 和边缘触发 ET 两种模式：LT 是默认的，只要还有数据没读完每次都会通知；ET 只在状态变化时通知一次，要配合非阻塞 fd 把数据一次读完。
+高并发服务器通常是**连接很多、但同一时刻有事的很少**，比如几万个空闲的长连接。这时 select / poll 每次调用都要为全部连接做拷贝和扫描，绝大部分是白做，select 的 1024 上限也根本不够用。epoll 每次等待只处理就绪的那几十个，登记的成本只在连接建立时付一次，所以连接数涨上去，单次等待的开销基本不变。反过来，如果连接全都很活跃，就绪数接近总数，epoll 的优势就会缩小。所以高并发用 epoll 的理由是「连接多、活跃比例低」，而不是「epoll 在任何情况下都快」。
 
-如果对方追问「监听 fd 为什么可读」，就用第一节的说法：握手由内核完成，连接进 accept 队列，队列非空监听 socket 就可读，`accept` 只是从队列里取一个。
+### 1. 用 epoll 写一个服务器，主循环大概分哪几步？
+
+1. **准备**：`socket` → `setsockopt(SO_REUSEADDR)` → `bind` → `listen`；`epoll_create1`；`epoll_ctl` 登记 `listen_fd`，关心 `EPOLLIN`。
+2. **等待**：`epoll_wait` 阻塞，返回就绪数 n。返回 -1 且 `errno == EINTR` 时直接重新等待，不要当成致命错误。
+3. **分发**：`for` 遍历这 n 个事件，按 `data` 里的标签区分监听 fd 和连接 fd。
+4. **新连接**：`accept` 拿到 `conn_fd`（ET 下要循环 accept 到 EAGAIN），需要时设成非阻塞，再 `epoll_ctl` 登记。
+5. **连接有数据**：`read` 后处理，`write` 回应；按返回值分别处理 0、EAGAIN 和错误，没写完就登记 `EPOLLOUT`。
+6. **清理**：发现断开或出错，就 `epoll_ctl(DEL)` 再 `close`，释放这个连接的资源，然后回到第 2 步。
+
+对照这个清单，demo.c 缺了三样：`epoll_wait` 遇到 EINTR 直接退出（实测：Ctrl+Z 挂起再 `fg` 恢复，demo 立刻打印 `epoll_wait: Interrupted system call` 并退出）；没有处理 SIGPIPE；没有检查 `write` 的返回值。作为讲原理的样板没问题，真要长期运行的服务器要补上。
+
+### 2. 一个客户端断开了，服务器怎么发现？发现之后要做什么？
+
+怎么发现，取决于对方是怎么断开的：
+
+- **正常关闭**（对方调用 `close`，发出 FIN）：fd 变成可读，`read` 返回 0；登记了 `EPOLLRDHUP` 的话，事件里还会带上它。
+- **异常断开**（收到 RST）：事件里带 `EPOLLHUP | EPOLLERR`，`read` 返回 -1，`errno` 为 `ECONNRESET`。对方进程崩溃时，内核会替它关闭 socket：通常发 FIN，如果它的接收缓冲区里还有没读的数据，则发 RST。
+- **往已经关闭的连接写**：`write` 返回 -1，`errno` 为 `EPIPE`，同时产生 SIGPIPE。
+- **对方断电、网线被拔**：不会有任何包到达，内核也无从得知。只能靠应用层心跳和超时，或者打开 TCP keepalive（Linux 默认连接空闲 7200 秒后才开始探测）。
+
+发现之后要做的事：
+
+- `epoll_ctl(EPOLL_CTL_DEL)` 之后 `close(fd)`。demo.c 只调用了 `close`，靠 epoll 自动移除，前提条件见上文 ev.data 一节；
+- 释放这个连接占用的一切：收发缓冲区、定时器、哈希表里的记录；
+- `close` 之后不要再使用这个 fd 号：Linux 总是分配最小的空闲 fd，下一次 `accept` 很可能马上拿到同一个号，拿旧编号去读写就会操作到别的连接。
+
+### 3. LT 和 ET 分别是什么意思？大概什么情况下用哪个？
+
+LT（水平触发，默认）是「只要还就绪，每次 `epoll_wait` 都提醒」：数据没读完，下一轮还会报告。ET（边缘触发）是「只在状态变化时提醒一次」：新数据到达时通知一次，没读完的部分不会再提醒，直到又有新数据进来。用法上，LT 好写，阻塞 fd、每次只读一次也不会丢事件，适合大多数场景和刚开始写的时候；ET 通知次数更少，但必须用非阻塞 fd，并且每次都读写到 EAGAIN，适合愿意把每个连接的状态管理写严谨、追求更少系统调用的高性能服务器。前面的「LT 与 ET」演示展示了两者的差别：同样每次读 1024 字节，LT 被唤醒 3 次读完 3000 字节，ET 只被唤醒 1 次，剩下的数据就留在了缓冲区里。
 
 ## [NOTE] 速查
 
@@ -376,6 +501,8 @@ Recv-Q Send-Q Local Address:Port Peer Address:Port Process
 - FD_SETSIZE | 1024 | select 能监视的 fd 编号上限
 - SOMAXCONN | 4096 | Linux 5.4 起的默认值，backlog 会被它截断
 - FIRST CONN_FD | 5 | 0/1/2 标准流、3 监听 socket、4 epoll 之后的最小空闲 fd
+- ET WAKEUPS | ~~3~~1 | 3000 字节、每次读 1024：LT 唤醒 3 次，ET 只唤醒 1 次
+- KEEPALIVE | 7200 | 秒，TCP keepalive 默认空闲多久才开始探测
 :::
 
 ::: lessons
@@ -384,6 +511,7 @@ Recv-Q Send-Q Local Address:Port Peer Address:Port Process
 3. **先分清「登记」和「等待」。**select 每次都把两件事一起做，epoll 把登记拆出去只做一次，这是两者全部差别的根源。
 4. **循环长度看的是谁。**同样是 for，select 跟着连接总数走，epoll 跟着就绪数走。
 5. **「更快」要带条件。**说 epoll 快时，一并说清是在连接多、活跃少的场景下。
+6. **每个返回值都要有去处。**read 的 0 / EAGAIN / 错误、write 的部分写入 / EPIPE、epoll_wait 的 EINTR，漏处理任何一个，都是一个线上会出现的坑。
 :::
 
 ## [REF] 参考
@@ -393,6 +521,9 @@ Recv-Q Send-Q Local Address:Port Peer Address:Port Process
 - poll(2)：https://man7.org/linux/man-pages/man2/poll.2.html
 - listen(2)（backlog、somaxconn、tcp_max_syn_backlog）：https://man7.org/linux/man-pages/man2/listen.2.html
 - ss(8)：https://man7.org/linux/man-pages/man8/ss.8.html
+- read(2)、write(2)：https://man7.org/linux/man-pages/man2/read.2.html 、https://man7.org/linux/man-pages/man2/write.2.html
+- signal(7)（SIGPIPE、停止信号让 epoll_wait 返回 EINTR）：https://man7.org/linux/man-pages/man7/signal.7.html
+- tcp(7)（tcp_keepalive_time）：https://man7.org/linux/man-pages/man7/tcp.7.html
 - 内核参数 `tcp_abort_on_overflow`、`somaxconn`：https://docs.kernel.org/networking/ip-sysctl.html
 - 内核源码：`fs/eventpoll.c`（`ep_poll_callback`、就绪链表）、`net/ipv4/inet_connection_sock.c`（`inet_csk_listen_poll`）、`net/ipv4/tcp_input.c`（`tcp_conn_request` 的队列满判断）
 - 同系列：[《从三次握手到 TLS 1.3》](/docs/tcp-handshake-tls.html)
