@@ -65,6 +65,20 @@ _HEAD_BOOT = """<script>
    2) 动效开关 m-on——减弱动效时不加；动效脚本 5 秒内没接管就撤销，保证内容可见。 */
 (function () {
   var d = document.documentElement, t = null;
+  /* 刷新（地址栏回车同一地址也算刷新）时从顶部开始，不恢复上次的滚动位置；
+     前进 / 后退仍然恢复，带 #锚点 的链接仍然跳到对应章节。 */
+  try {
+    var nav = performance.getEntriesByType("navigation")[0];
+    if (nav && nav.type === "reload" && !location.hash) {
+      history.scrollRestoration = "manual";
+      /* 这次加载里 Chrome 仍可能按旧设置恢复位置，所以在 load 之后再回顶一次 */
+      var top = function () { scrollTo(0, 0); };
+      top();
+      addEventListener("DOMContentLoaded", top);
+      addEventListener("load", function () { top(); setTimeout(top, 0); });
+      addEventListener("pagehide", function () { history.scrollRestoration = "auto"; });
+    }
+  } catch (e) {}
   try { t = localStorage.getItem("theme"); } catch (e) {}
   if (t === "light" || t === "dark") d.setAttribute("data-theme", t);
   d.setAttribute("data-theme-resolved", t === "light" ? "light" : "dark");
