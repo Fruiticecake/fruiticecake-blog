@@ -40,6 +40,7 @@ class SiteShellTest(unittest.TestCase):
                 head = text.split("</head>")[0]
                 self.assertIn("/stage/tokens.css", head)
                 self.assertIn('localStorage.getItem("theme")', head)
+                self.assertIn('history.scrollRestoration = "manual"', head)   # 刷新后回到顶部
                 self.assertIn('class="theme-btn"', text)
                 self.assertIn('class="sound-btn"', text)
 
