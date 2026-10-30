@@ -11,6 +11,7 @@
 import { initStageMotion } from "./motion.js";
 import { initChrome } from "./chrome.js";
 import { initTheme } from "./theme.js";
+import { initSound } from "./sound.js";
 
 const NAME = /^[a-z][a-z0-9-]*$/;
 // 页面用 runtime.js?v=<资源哈希> 加载本文件；组件库的动态 import 沿用同一个版本号，避免旧缓存
@@ -73,6 +74,7 @@ async function mountHero(local) {
 
 async function boot() {
   initTheme();
+  initSound();
   const local = await loadLocal(document.body.dataset.localWidgets);
   await mountHero(local);
   initChrome();

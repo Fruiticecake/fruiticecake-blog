@@ -113,6 +113,7 @@ def build_stage_post(cfg, sections, post, template_path, static_dir):
         nav_links=nav_html(cfg, post.section),
         analytics_html=ui.analytics_html(cfg),
         head_boot=ui.head_boot_script(boot=True),
+        sound_button=ui.SOUND_BUTTON,
         theme_button=ui.THEME_BUTTON,
         version=version,
         hero=stage.hero_name(post.meta),

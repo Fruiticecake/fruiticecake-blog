@@ -41,6 +41,7 @@ class SiteShellTest(unittest.TestCase):
                 self.assertIn("/stage/tokens.css", head)
                 self.assertIn('localStorage.getItem("theme")', head)
                 self.assertIn('class="theme-btn"', text)
+                self.assertIn('class="sound-btn"', text)
 
     def test_classic_pages_load_site_assets(self):
         page = self.read("archive/index.html")

@@ -4,6 +4,7 @@
 // 减弱动效 / JS 失败时页面就是完整的静态版。本模块启动时设置 window.__siteMotion。
 
 import { initTheme } from "/stage/theme.js";
+import { initSound } from "/stage/sound.js";
 import { splitChars, runBoot } from "/stage/motion.js";
 
 const html = document.documentElement;
@@ -166,6 +167,7 @@ async function initStrands() {
 async function init() {
   window.__siteMotion = true;
   initTheme();
+  initSound();
   initClock();
   initScroll();
   initCopyButtons();

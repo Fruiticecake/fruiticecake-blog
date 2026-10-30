@@ -23,7 +23,7 @@ $analytics_html
 <header class="bar">
   <a class="brand" href="/">$brand</a>
   <nav aria-label="站点">$nav_links</nav>
-  <span class="bar-tools"><span class="rec"><span class="rec-label">REC · </span><span id="clock">00:00:00:00</span></span>$theme_button</span>
+  <span class="bar-tools"><span class="rec"><span class="rec-label">REC · </span><span id="clock">00:00:00:00</span></span>$sound_button$theme_button</span>
   <span class="progress" aria-hidden="true"></span>
 </header>
 
