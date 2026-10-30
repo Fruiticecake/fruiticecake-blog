@@ -254,4 +254,16 @@ html.m-on [data-reveal].is-in{opacity:1;transform:none}
 .theme-btn .sun{display:none}
 :root[data-theme-resolved="light"] .theme-btn .sun{display:block}
 :root[data-theme-resolved="light"] .theme-btn .moon{display:none}
+/* 环境音开关：和主题按钮同一套外观；开着时变成标记色，记住了「开」但还没出声时轻轻闪 */
+.sound-btn{display:grid;place-items:center;width:2rem;height:2rem;border:1px solid var(--line-2);background:transparent;color:var(--ink-2);cursor:pointer;border-radius:2px;transition:color .2s,border-color .2s}
+.sound-btn:hover{color:var(--mark);border-color:var(--mark)}
+.sound-btn svg{width:1rem;height:1rem}
+.sound-btn .wave{display:none}
+.sound-btn[aria-pressed="true"]{color:var(--mark);border-color:var(--mark)}
+.sound-btn[aria-pressed="true"] .wave{display:inline}
+.sound-btn[aria-pressed="true"] .mute{display:none}
+.sound-btn.is-waiting{animation:sound-wait 1.6s ease-in-out infinite}
+@keyframes sound-wait{50%{opacity:.45}}
+:is(.sound-btn,.theme-btn):focus-visible{outline:2px solid var(--mark);outline-offset:2px}
+@media (max-width:420px){.bar-tools{gap:.55rem}.rec #clock{display:none}}   /* 窄屏：REC 只留红点，给两个按钮让位 */
 body{transition:background-color .35s,color .35s}

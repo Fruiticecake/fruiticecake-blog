@@ -81,6 +81,14 @@ class StageBuildTest(unittest.TestCase):
         self.assertIn("data-theme-resolved", head)
         self.assertIn('class="theme-btn"', page)
 
+    def test_stage_page_has_sound_toggle_off_by_default(self):
+        public = self.build({"docs/demo-bundle/index.md": STAGE_POST})
+        page = (public / "docs" / "demo-bundle.html").read_text(encoding="utf-8")
+        tools = page.split('class="bar-tools"')[1].split("</header>")[0]
+        self.assertIn('class="sound-btn"', tools)
+        self.assertIn('aria-pressed="false"', tools.split('class="sound-btn"')[1].split(">")[0])
+        self.assertLess(tools.index("sound-btn"), tools.index("theme-btn"))
+
     def test_stage_page_uses_stage_shell_rail_and_widgets(self):
         public = self.build({"docs/demo-bundle/index.md": STAGE_POST,
                              "docs/demo-bundle/widgets.js": "export const widgets = {};"})

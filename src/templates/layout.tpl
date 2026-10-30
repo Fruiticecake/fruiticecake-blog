@@ -27,7 +27,7 @@ $analytics_html
       $nav_links
       <a href="/archive/"$archive_current>归档</a>
     </nav>
-    <div class="bar-tools"><span class="rec">REC · <span id="clock">00:00:00:00</span></span>$theme_button</div>
+    <div class="bar-tools"><span class="rec">REC · <span id="clock">00:00:00:00</span></span>$sound_button$theme_button</div>
   </div>
   <span class="progress" aria-hidden="true"></span>
 </header>

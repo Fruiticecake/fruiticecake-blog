@@ -91,6 +91,14 @@ THEME_BUTTON = (
     'M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>')
 
 
+# 环境音开关：默认关闭（aria-pressed="false"），声音由 /stage/sound.js 用 Web Audio 实时合成。
+SOUND_BUTTON = (
+    '<button class="sound-btn" type="button" aria-pressed="false" aria-label="打开环境音" title="环境音">'
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '
+    'stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/>'
+    '<path class="wave" d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/>'
+    '<path class="mute" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>')
+
 def analytics_html(cfg):
     """Vercel Web Analytics 埋点；config.json 里 analytics_script 留空即关闭。
 

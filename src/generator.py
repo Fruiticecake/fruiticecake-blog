@@ -205,6 +205,7 @@ def render_layout(cfg, title, description, content, active=""):
         page=util.html_escape(active),
         head_boot=ui.head_boot_script(boot=active == "home"),
         version=site_version(),
+        sound_button=ui.SOUND_BUTTON,
         theme_button=ui.THEME_BUTTON,
         analytics_html=ui.analytics_html(cfg),
         nav_links=ui.nav_links_html(cfg, active),
