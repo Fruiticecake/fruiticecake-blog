@@ -1,0 +1,116 @@
+/* 本文专属组件样式：首屏车道 / copy-path / shm-ring / ai-pipeline */
+
+/* ---------- 公共按钮和文字 ---------- */
+.ic-btn{font-family:var(--sans);font-size:.78rem;background:transparent;color:var(--ink-2);border:1px solid var(--line-2);padding:.4rem .8rem;cursor:pointer;transition:border-color .2s,color .2s,background .2s}
+.ic-btn:hover:not(:disabled){border-color:var(--ink-2);color:var(--ink)}
+.ic-btn:focus-visible,.ic-row:focus-visible,.w-ic:focus-visible{outline:2px solid var(--mark);outline-offset:2px}
+.ic-btn:disabled{opacity:.4;cursor:default}
+.ic-btn[aria-pressed="true"]{border-color:var(--mark);color:var(--mark);background:var(--mark-dim)}
+.ic-btn.is-primary{background:var(--mark);border-color:var(--mark);color:var(--on-mark);font-weight:700}
+.ic-btn.is-primary:hover:not(:disabled){filter:brightness(1.1);color:var(--on-mark)}
+.ic-cap{min-height:3.2em;margin:.7rem 0 .4rem!important;font-size:.92rem;line-height:1.6;color:var(--ink)!important}
+.ic-ctrl{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}
+.ic-count{font-family:var(--mono);font-size:.7rem;color:var(--ink-3);min-width:6.5rem;text-align:center}
+.ic-play{margin-left:auto}
+
+/* ---------- copy-path ---------- */
+.ic-grid{display:grid;grid-template-columns:minmax(11rem,13.5rem) minmax(0,1fr);gap:1rem;align-items:start}
+.w-ic.is-narrow .ic-grid{grid-template-columns:minmax(0,1fr)}
+.ic-rows{display:grid;gap:.3rem}
+.w-ic.is-narrow .ic-rows{grid-template-columns:repeat(auto-fill,minmax(9.5rem,1fr))}
+.ic-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;text-align:left;background:var(--bg-2);border:1px solid var(--line);padding:.42rem .6rem;cursor:pointer;color:var(--ink-2);font-family:var(--sans);font-size:.8rem;transition:border-color .2s,color .2s,background .2s}
+.ic-row:hover{border-color:var(--ink-3);color:var(--ink)}
+.ic-row[aria-pressed="true"]{border-color:var(--mark);color:var(--mark);background:var(--mark-dim)}
+.ic-dots{display:inline-flex;gap:.22rem;flex:none}
+.ic-dots i,.ic-legend i:not(.ir-key){display:inline-block;width:.6rem;height:.6rem;border-radius:50%}
+.is-kernel:is(i){background:var(--ir)}
+.is-user:is(i){background:var(--mark)}
+.is-none:is(i){border:1.5px solid var(--ink-3);background:transparent}
+.ic-legend{display:flex;flex-wrap:wrap;gap:.3rem .9rem;margin:.6rem 0 0!important;font-size:.74rem;color:var(--ink-3)!important}
+.ic-legend span{display:inline-flex;align-items:center;gap:.35rem}
+.ic-svg{width:100%;height:auto;display:block;background:var(--render-bg);border:1px solid var(--line)}
+.ic-kernel-band{fill:color-mix(in srgb,var(--ir) 6%,transparent)}
+.ic-boundary{stroke:var(--line-2);stroke-dasharray:5 5}
+.ic-lane{font-family:var(--sans);fill:var(--ink-3)}
+.ic-node rect{fill:color-mix(in srgb,var(--ink) 5%,transparent);stroke:var(--line-2);stroke-width:1.2;transition:stroke .3s}
+.ic-node-label{font-family:var(--sans);fill:var(--ink-2)}
+.ic-node.is-s rect{fill:color-mix(in srgb,var(--mark) 10%,transparent);stroke:var(--mark)}
+.ic-node.is-k rect{stroke:color-mix(in srgb,var(--ir) 60%,var(--line-2))}
+.ic-svg.is-waking .ic-node.is-b rect{stroke:var(--mark);animation:ic-pulse .8s var(--ease) infinite alternate}
+.ic-svg.is-passing .ic-node.is-k rect{stroke:var(--ir);animation:ic-pulse .5s var(--ease) infinite alternate}
+@keyframes ic-pulse{to{stroke-width:3.2}}
+.ic-map{fill:none;stroke:var(--mark);stroke-width:1.4;stroke-dasharray:4 4}
+.ic-chip{opacity:0;transition:opacity .2s}
+.ic-chip.is-on{opacity:1}
+.ic-chip text{font-family:var(--mono);font-weight:700}
+.ic-chip.is-held rect{fill:color-mix(in srgb,var(--mark) 28%,transparent);stroke:var(--mark)}
+.ic-chip.is-held text{fill:var(--mark)}
+.ic-chip.is-fly{transition:transform .65s var(--ease),opacity .2s}
+.ic-chip.is-fly rect{fill:var(--mark)}
+.ic-chip.is-fly text{fill:var(--on-mark)}
+.ic-chip.is-signal{transition:transform .65s var(--ease),opacity .2s}
+.ic-chip.is-signal rect{fill:var(--panel);stroke:var(--ink-2)}
+.ic-chip.is-signal text{fill:var(--ink)}
+.ic-chip.no-anim{transition:none}
+.ic-stats{display:flex;flex-wrap:wrap;align-items:center;gap:.3rem 1.1rem;margin-top:.6rem;font-size:.84rem;color:var(--ink-2)}
+.ic-stat-v{font-family:var(--mono);font-size:1.05rem;color:var(--ink)}
+.w-ic code.ic-call{font-family:var(--mono);font-size:.76rem;color:var(--mark);background:none;padding:0}
+
+/* ---------- shm-ring ---------- */
+.ir-bar{display:flex;flex-wrap:wrap;gap:.5rem 1rem;margin-bottom:.9rem}
+.ir-group{display:flex;flex-wrap:wrap;gap:.35rem}
+.ir-track{position:relative;padding-bottom:1.7rem}
+.ir-ring{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:.3rem}
+.ir-cell{aspect-ratio:1;min-height:2rem;display:flex;align-items:center;justify-content:center;border:1px solid var(--line-2);background:var(--render-bg);transition:background .15s,border-color .15s}
+.ir-num{font-family:var(--mono);font-size:.82rem;color:var(--ink)}
+.is-writing:is(.ir-cell,.ir-key){background:color-mix(in srgb,var(--ink) 22%,transparent);border-color:var(--ink-2)}
+.is-ready:is(.ir-cell,.ir-key){background:color-mix(in srgb,var(--mark) 28%,transparent);border-color:var(--mark)}
+.is-reading:is(.ir-cell,.ir-key){background:var(--mark);border-color:var(--mark)}
+.ir-cell.is-reading .ir-num{color:var(--on-mark);font-weight:700}
+.is-torn:is(.ir-cell,.ir-key){background:var(--ir);border-color:var(--ir)}
+.ir-cell.is-torn .ir-num{color:var(--bg);font-weight:700}
+.ir-key{display:inline-block;width:.8rem;height:.8rem;border:1px solid var(--line-2)}
+.ir-markers{position:absolute;left:0;right:0;bottom:0;height:1.4rem}
+.ir-mark{position:absolute;top:0;transform:translateX(-50%);font-size:.72rem;padding:0 .35rem;border:1px solid var(--line-2);color:var(--ink-2);background:var(--bg-2);transition:left .2s var(--ease)}
+.ir-mark.is-r{top:0;color:var(--mark);border-color:var(--mark)}
+.ir-stats{display:flex;flex-wrap:wrap;gap:.3rem 1.1rem;margin-top:.7rem;font-size:.84rem;color:var(--ink-2)}
+.ir-stat b{font-family:var(--mono);color:var(--ink)}
+.ir-stat.is-alert,.ir-stat.is-alert b{color:var(--ir)}
+
+/* ---------- ai-pipeline ---------- */
+.ia-tabs{margin-bottom:.8rem}
+.ia-svg{width:100%;height:auto;display:block;background:var(--render-bg);border:1px solid var(--line)}
+.ia-node rect{fill:var(--panel);stroke:var(--line-2);stroke-width:1.2}
+.ia-node text{font-family:var(--sans);font-size:14px;fill:var(--ink)}
+.ia-link{fill:none;stroke:var(--line-2);stroke-width:1.5;transition:stroke .25s}
+.ia-link.is-on{stroke:var(--mark);stroke-width:2.6;stroke-dasharray:9 7;animation:ia-flow .9s linear infinite;filter:var(--glow)}
+@keyframes ia-flow{to{stroke-dashoffset:-16}}
+.ia-panel{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.35rem .9rem;margin:.8rem 0 .3rem}
+.ia-panel dt{font-size:.78rem;color:var(--ink-3);padding-top:.12rem}
+.ia-panel dd{margin:0;font-size:.92rem;line-height:1.55;color:var(--ink)}
+
+/* ---------- 首屏 ---------- */
+.ih-svg{width:100%;height:auto;display:block}
+.ih-lane{font-family:var(--mono);fill:var(--ink-3);letter-spacing:.04em}
+.ih-box rect{fill:color-mix(in srgb,var(--ink) 5%,transparent);stroke:var(--line-2);stroke-width:1.2}
+.ih-box text{font-family:var(--sans);fill:var(--ink-2)}
+.ih-box.is-kernel rect{fill:color-mix(in srgb,var(--ir) 10%,transparent);stroke:color-mix(in srgb,var(--ir) 70%,var(--line-2))}
+.ih-box.is-shared rect{fill:color-mix(in srgb,var(--mark) 10%,transparent);stroke:var(--mark)}
+.ih-chip{opacity:0;transition:transform .75s var(--ease),opacity .2s}
+.ih-chip.is-on{opacity:1}
+.ih-chip.no-anim{transition:none}
+.ih-chip text{font-family:var(--mono);font-weight:700}
+.ih-chip.is-data rect{fill:color-mix(in srgb,var(--mark) 28%,transparent);stroke:var(--mark)}
+.ih-chip.is-data text{fill:var(--mark)}
+.ih-chip.is-fly rect{fill:var(--mark);filter:var(--glow)}
+.ih-chip.is-fly text{fill:var(--on-mark)}
+.ih-chip.is-bell rect{fill:var(--panel);stroke:var(--ink-2)}
+.ih-chip.is-bell text{fill:var(--ink)}
+.ih-key{display:inline-block;width:.8rem;height:.8rem;border:1px solid var(--mark)}
+.ih-key.is-data{background:color-mix(in srgb,var(--mark) 28%,transparent)}
+.ih-key.is-bell{background:var(--panel);border-color:var(--ink-2)}
+
+@media (prefers-reduced-motion:reduce){
+  .ic-chip,.ih-chip,.ir-mark,.ir-cell{transition:none}
+  .ic-svg.is-waking .ic-node.is-b rect,.ic-svg.is-passing .ic-node.is-k rect,.ia-link.is-on{animation:none}
+}
