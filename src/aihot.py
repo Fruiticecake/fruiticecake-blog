@@ -3,6 +3,7 @@
 """拉取 AI HOT 当日日报并写入 content/aihot/<date>.md（统一交给生成器渲染）。
 
 运行：python3 src/aihot.py
+补抓指定日期：python3 src/aihot.py 2026-11-01 2026-11-02
 - 优先拉取北京时间「今天」的日报；仅当 items>0 且 API date==今天时视为今日成功。
 - 否则拉取 latest，按其真实 date 落盘；若该 date 不是今天则 exit 2（便于晚间重试）。
 - latest 为空则 exit 1。绝不把昨日内容写进今日文件名。
@@ -11,11 +12,16 @@ import os
 import sys
 import json
 import datetime
+import re
 import urllib.request
 import subprocess
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT_AIHOT = os.path.join(ROOT, "content", "aihot")
+
+# 旧接口 /api/public/daily 已于 2026-10-31 停服，迁移说明：https://aihot.news/agent?tab=api
+API_BASE = "https://aihot.news/api/v1/dailies"
+SITE_URL = "https://aihot.news"
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
@@ -37,7 +43,7 @@ def fetch(url):
         with urllib.request.urlopen(req, timeout=30) as r:
             return r.read().decode("utf-8")
     except Exception:
-        out = subprocess.run(["curl", "-s", "-H", f"User-Agent: {UA}", url],
+        out = subprocess.run(["curl", "-fsSL", "-H", f"User-Agent: {UA}", url],
                              capture_output=True, text=True, timeout=40)
         if out.returncode == 0 and out.stdout.strip():
             return out.stdout
@@ -46,9 +52,11 @@ def fetch(url):
 
 def get_daily(date_str=None):
     """Fetch daily digest. date_str=None means latest. No silent fallback."""
-    base = "https://aihot.virxact.com/api/public/daily"
-    url = f"{base}/{date_str}" if date_str else base
-    return json.loads(fetch(url))
+    url = f"{API_BASE}/{date_str or 'latest'}"
+    report = json.loads(fetch(url)).get("report")
+    if not isinstance(report, dict):
+        raise RuntimeError("no report in response: " + url)
+    return report
 
 
 def count_items(data):
@@ -62,6 +70,10 @@ def clean(s):
 
 def build_markdown(data, date_str):
     sections_map = {s.get("label", ""): s.get("items", []) for s in data.get("sections", [])}
+    known = {lbl for _, lbl in SECTION_ORDER}
+    for lbl in sections_map:
+        if lbl not in known:
+            print(f"WARN {date_str}: section not rendered: {lbl}", file=sys.stderr)
     total = sum(len(sections_map.get(lbl, [])) for _, lbl in SECTION_ORDER)
     lines = []
     lines.append("---")
@@ -79,7 +91,8 @@ def build_markdown(data, date_str):
     def esc(s):
         return html_lib.escape(clean(s), quote=True)
 
-    lines.append(f'<p class="aihot-intro">由 <a href="https://aihot.virxact.com" target="_blank" rel="noopener noreferrer">AI HOT</a> 公开接口整理，共 <strong>{total}</strong> 条。</p>')
+    credit = (data.get("links") or {}).get("aihot") or SITE_URL
+    lines.append(f'<p class="aihot-intro">由 <a href="{esc(credit)}" target="_blank" rel="noopener noreferrer">AI HOT</a> 公开接口整理，共 <strong>{total}</strong> 条。</p>')
     for _, lbl in SECTION_ORDER:
         items = sections_map.get(lbl, [])
         if not items:
@@ -89,8 +102,9 @@ def build_markdown(data, date_str):
         lines.append('  <div class="aihot-grid">')
         for it in items:
             title = clean(it.get("title", ""))
-            url = it.get("sourceUrl") or it.get("permalink") or "#"
-            src = clean(it.get("sourceName", "") or "AI HOT")
+            links = it.get("links") or {}
+            url = links.get("original") or links.get("aihot") or "#"
+            src = clean((it.get("source") or {}).get("name", "") or "AI HOT")
             summ = clean(it.get("summary", ""))[:140]
             body = esc(summ) if summ else "点击查看原文"
             lines.append(f'    <a class="aihot-card" href="{esc(url)}" target="_blank" rel="noopener noreferrer">')
@@ -113,7 +127,33 @@ def write_daily(data, date_str):
     return out
 
 
-def main():
+def backfill(dates):
+    """Write the given dates. Refuses anything but a digest for exactly that date."""
+    failed = 0
+    for date_str in dates:
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_str):
+            print(f"ERR invalid date: {date_str!r}", file=sys.stderr)
+            failed += 1
+            continue
+        try:
+            data = get_daily(date_str)
+        except Exception as e:
+            print(f"ERR {date_str} fetch failed: {e}", file=sys.stderr)
+            failed += 1
+            continue
+        if data.get("date") != date_str or count_items(data) <= 0:
+            print(f"ERR {date_str}: empty or for another date ({data.get('date')})", file=sys.stderr)
+            failed += 1
+            continue
+        write_daily(data, date_str)
+    return 1 if failed else 0
+
+
+def main(argv=None):
+    args = sys.argv[1:] if argv is None else argv
+    if args:
+        return backfill(args)
+
     today = datetime.datetime.now(BJ).strftime("%Y-%m-%d")
 
     try:
