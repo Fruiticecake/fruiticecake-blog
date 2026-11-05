@@ -1,0 +1,78 @@
+/* 本文专属组件样式：首屏两条队列 / pick-order / backlog-cost / queue-life / mq-chooser */
+
+.mq-btn{font-family:var(--sans);font-size:.8rem;background:transparent;color:var(--ink-2);border:1px solid var(--line-2);padding:.42rem .85rem;cursor:pointer;transition:border-color .2s,color .2s,background .2s}
+.mq-btn:hover:not(:disabled){border-color:var(--ink-2);color:var(--ink)}
+.mq-btn:focus-visible,.w-mq:focus-visible{outline:2px solid var(--mark);outline-offset:2px}
+.mq-btn:disabled{opacity:.4;cursor:default}
+.mq-btn[aria-pressed="true"]{border-color:var(--mark);color:var(--mark);background:var(--mark-dim)}
+.mq-btn.is-primary{background:var(--mark);border-color:var(--mark);color:var(--on-mark);font-weight:700}
+.mq-btn.is-primary:hover:not(:disabled){filter:brightness(1.1);color:var(--on-mark)}
+.mq-tabs,.mq-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem}
+.mq-label{margin:.9rem 0 .35rem!important;font-size:.76rem;color:var(--ink-3)!important}
+.mq-count{font-family:var(--mono);font-size:.72rem;color:var(--ink-3);min-width:6rem;text-align:center}
+
+/* ---------- pick-order ---------- */
+.mq-queue{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.4rem;list-style:none;margin:0 0 .8rem!important;padding:0!important}
+.mq-msg{display:flex;flex-direction:column;gap:.15rem;margin:0!important;padding:.55rem .6rem;background:var(--bg-2);border:1px solid var(--line-2);transition:opacity .25s,border-color .25s,background .25s,transform .25s var(--ease)}
+.mq-msg b{font-family:var(--mono);font-size:.92rem;color:var(--ink);font-weight:700}
+.mq-msg span{font-family:var(--mono);font-size:.7rem;color:var(--ink-3)}
+.mq-msg.is-next{border-color:var(--mark);background:var(--mark-dim);transform:translateY(-3px);box-shadow:var(--glow-shadow)}
+.mq-msg.is-next b{color:var(--mark)}
+.mq-msg.is-gone{opacity:.28;border-style:dashed}
+.mq-log{list-style:none;margin:.75rem 0 0!important;padding:.6rem .75rem!important;min-height:6.6rem;background:var(--render-bg);border:1px solid var(--line)}
+.mq-log li{margin:0!important;padding:.1rem 0;font-size:.84rem;line-height:1.55;color:var(--ink)}
+.mq-log li.is-note{color:var(--ink-3)}
+.mq-log li.is-stop{color:var(--ir)}
+
+/* ---------- backlog-cost ---------- */
+.mq-line{display:grid;grid-template-columns:4.6rem minmax(0,1fr) 5.2rem;align-items:center;gap:.6rem;margin-top:.7rem}
+.mq-line-name{font-size:.8rem;color:var(--ink-2)}
+.mq-line b{font-family:var(--mono);font-size:.85rem;color:var(--ink);text-align:right}
+.mq-track{display:block;height:1.1rem;background:var(--bg-2);border:1px solid var(--line)}
+.mq-bar{display:block;height:100%;width:100%;transform-origin:left center;transition:transform .45s var(--ease)}
+.mq-bar.is-p{background:var(--mark)}
+.mq-bar.is-s{background:var(--ir)}
+.mq-ratio{margin:.8rem 0 0!important;font-size:.9rem;color:var(--ink)!important}
+
+/* ---------- queue-life ---------- */
+.mq-action{margin:0 0 .7rem!important;min-height:1.6em;font-size:.98rem;font-weight:700;color:var(--ink)!important}
+.mq-panes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem;margin-bottom:.8rem}
+.mq-pane{padding:.7rem .8rem;min-height:8rem;background:var(--bg-2);border:1px solid var(--line-2)}
+.mq-pane h4{margin:0 0 .4rem!important;font-family:var(--mono);font-size:.74rem;font-weight:700;color:var(--mark);letter-spacing:.04em}
+.mq-pane p{margin:0!important;font-size:.88rem;line-height:1.6;color:var(--ink)!important}
+
+/* ---------- mq-chooser ---------- */
+.mq-path{list-style:none;margin:0 0 .6rem!important;padding:0!important}
+.mq-path:empty{display:none}
+.mq-path li{display:flex;justify-content:space-between;gap:1rem;margin:0!important;padding:.3rem 0;border-bottom:1px solid var(--line);font-size:.8rem;color:var(--ink-3)}
+.mq-path li b{flex:none;color:var(--ink-2)}
+.mq-ask{min-height:9rem}
+.mq-question{margin:.3rem 0 .8rem!important;font-size:1rem;line-height:1.6;color:var(--ink)!important}
+.mq-ask>.mq-count{display:block;min-width:0;text-align:left}
+.mq-result{margin-bottom:.8rem;padding:.8rem .9rem;border:1px solid var(--mark);background:var(--mark-dim)}
+.mq-result .mq-label{display:block;margin:0 0 .25rem!important}
+.mq-result strong{display:block;font-size:1.05rem;color:var(--ink)}
+.mq-result p{margin:.35rem 0 0!important;font-size:.88rem;line-height:1.6;color:var(--ink-2)!important}
+
+/* ---------- 首屏 ---------- */
+.mqh-svg{width:100%;height:auto;display:block}
+.mqh-lane{font-family:var(--mono);fill:var(--ink-2);letter-spacing:.03em}
+.mqh-note{font-family:var(--sans);fill:var(--ink-3)}
+.mqh-rail{stroke:var(--line-2);stroke-dasharray:4 5}
+.mqh-chip{transition:transform .8s var(--ease),opacity .4s}
+.mqh-chip rect{fill:color-mix(in srgb,var(--ink) 5%,transparent);stroke:var(--line-2);stroke-width:1.2;transition:stroke .25s,fill .25s}
+.mqh-chip text{font-family:var(--mono);font-weight:700;fill:var(--ink)}
+.mqh-chip .mqh-sub{font-weight:400;fill:var(--ink-3)}
+.mqh-chip.is-next rect{stroke:var(--mark);fill:color-mix(in srgb,var(--mark) 22%,transparent);filter:var(--glow)}
+.mqh-chip.is-next text{fill:var(--mark)}
+.mqh-chip.is-out{opacity:0}
+
+@media (max-width:560px){
+  .mq-queue{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mq-panes{grid-template-columns:minmax(0,1fr)}
+  .mq-pane{min-height:0}
+  .mq-line{grid-template-columns:3.8rem minmax(0,1fr) 4.6rem}
+}
+@media (prefers-reduced-motion:reduce){
+  .mq-msg,.mq-bar,.mqh-chip,.mqh-chip rect{transition:none}
+}
