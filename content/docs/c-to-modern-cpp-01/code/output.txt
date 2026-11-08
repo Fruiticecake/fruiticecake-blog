@@ -1,0 +1,57 @@
+===== lambda_capture.cpp
+[value]  -> 1  手写结构体 -> 1
+[&value] -> 100  手写结构体 -> 100
+[=] -> 3, [&] -> 12
+mutable -> 11 12, 外面的 a = 10
+sizeof([value]) = 4, sizeof([&value]) = 8, sizeof([]) = 1
+===== function_box.cpp
+10 8 15 
+ui: wlan0
+uploader: wlan0
+received = 1
+1 2 3 4 5 
+sizeof(int(*)(int)) = 8, sizeof(std::function<int(int)>) = 32
+===== move_owner.cpp
+1. 拷贝
+  构造  data=0x502000000010
+  拷贝  data=0x502000000030（新申请）
+  a=hello b=hello
+2. 移动
+  移动  data=0x502000000010（拿走对方的）
+  a=(空) c=hello
+3. 右值引用只是别名，不会移动
+  绑定之后 lv1="string,"
+  构造之后 lv1="" s2="string,"
+4. 临时对象绑到右值引用上，寿命延长到引用的作用域结束
+  rv2="string,tail!"
+main 结束，按逆序析构：
+  析构  data=0x502000000010
+  析构  data=0x502000000030
+  析构  data=(nil)
+===== push_back_move.cpp
+str 的缓冲区        0x504000000010
+拷贝后 v[0] 的缓冲区 0x504000000050，str 长度 40
+移动后 v[1] 的缓冲区 0x504000000010，str 长度 0
+短字符串 small 的缓冲区 0x7f97c9e000d0（在 small 对象内部 0x7f97c9e000c0 附近）
+移动后 v[2] 的缓冲区   0x50c000000090，small 长度 0
+===== smart_ptr.cpp
+1. unique_ptr 只能移动
+  u1 为空, *u2 = 10
+2. shared_ptr 计数，reset 之后这个变量还能再用
+  use_count = 2
+  reset 后 p2 为空, p.use_count = 1
+  重新赋值后 *p2 = 42, use_count = 2
+3. weak_ptr 用之前要 lock()
+  weak_ptr 不加计数：use_count = 2
+  lock 成功，值 = 42
+  全部 reset 后 expired = true, lock() 为空
+4. 双向链表：next 用强引用，prev 用弱引用
+  a.use_count = 1, b.use_count = 2
+  ~Node(a)
+  ~Node(b)
+  离开作用域，两个都析构了
+5. 两边都用强引用：离开作用域谁也不析构（ASan 会在退出时报泄漏）
+  没有看到 ~Strong
+=================================================================
+==223==ERROR: LeakSanitizer: detected memory leaks
+SUMMARY: AddressSanitizer: 64 byte(s) leaked in 2 allocation(s).
